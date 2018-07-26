@@ -131,6 +131,42 @@ class DetectionModel(ModelDesc):
         final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels')
         return final_boxes, final_labels
     
+    def fastrcnn_inference_cascade(self, image_shape2d,
+                           rcnn_boxes, rcnn_label_logits, rcnn_box_logits, stage_num):
+        """
+        Args:
+            image_shape2d: h, w
+            rcnn_boxes (nx4): the proposal boxes
+            rcnn_label_logits (n):
+            rcnn_box_logits (nx #class x 4):
+
+        Returns:
+            boxes (mx4):
+            labels (m): each >= 1
+        """
+        prefix = ''
+        if stage_num == 1:
+            prefix = '_1st'
+        elif stage_num == 2:
+            prefix = '_2nd'
+        elif stage_num == 3:
+            prefix ='_3rd'
+        rcnn_box_logits = rcnn_box_logits[:, 1:, :]
+        rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
+        label_probs = tf.nn.softmax(rcnn_label_logits, name='fastrcnn_all_probs')  # #proposal x #Class
+        anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
+        decoded_boxes = decode_bbox_target(
+            rcnn_box_logits /
+            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
+        decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
+
+        # indices: Nx2. Each index into (#proposal, #category)
+        pred_indices, final_probs = fastrcnn_predictions(decoded_boxes, label_probs)
+        final_probs = tf.identity(final_probs, 'final_probs'+prefix)
+        final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name='final_boxes'+prefix)
+        final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels'+prefix)
+        return final_boxes, final_labels
+
     def decode_boxes(self, image_shape2d, rcnn_boxes, rcnn_box_logits, stage_num):
         """
         Args:
@@ -515,8 +551,8 @@ class ResNetFPNModel(DetectionModel):
                 mrcnn_loss = 0.0
         
         else:
-            final_boxes_1st, final_labels_1st = self.fastrcnn_inference(
-                image_shape2d, rcnn_boxes_1st, fastrcnn_label_logits_1st, fastrcnn_box_logits_1st)
+            final_boxes_1st, final_labels_1st = self.fastrcnn_inference_cascade(
+                image_shape2d, rcnn_boxes_1st, fastrcnn_label_logits_1st, fastrcnn_box_logits_1st, 1)
             if cfg.MODE_MASK:
                 # Cascade inference needs roi transform with refined boxes.
                 roi_feature_maskrcnn = multilevel_roi_align(p23456[:4], final_boxes, 14)
@@ -554,8 +590,8 @@ class ResNetFPNModel(DetectionModel):
                 image, rcnn_labels_2nd, fg_sampled_boxes_2nd,
                 matched_gt_boxes_2nd, fastrcnn_label_logits_2nd, fg_fastrcnn_box_logits_2nd)
         else:
-            final_boxes_2nd, final_labels_2nd = self.fastrcnn_inference(
-                image_shape2d, rcnn_boxes_2nd, fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd)
+            final_boxes_2nd, final_labels_2nd = self.fastrcnn_inference_cascade(
+                image_shape2d, rcnn_boxes_2nd, fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd, 2)
         
         ########################### stage 3
         proposal_boxes_3rd = self.decode_boxes(image_shape2d, rcnn_boxes_2nd, fastrcnn_box_logits_2nd, 3)
@@ -584,8 +620,8 @@ class ResNetFPNModel(DetectionModel):
                 image, rcnn_labels_3rd, fg_sampled_boxes_3rd,
                 matched_gt_boxes_3rd, fastrcnn_label_logits_3rd, fg_fastrcnn_box_logits_3rd)
         else:
-            final_boxes_3rd, final_labels_3rd = self.fastrcnn_inference(
-                image_shape2d, rcnn_boxes_3rd, fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd)          
+            final_boxes_3rd, final_labels_3rd = self.fastrcnn_inference_cascade(
+                image_shape2d, rcnn_boxes_3rd, fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd, 3)          
         
         if is_training:
             wd_cost = regularize_cost(
