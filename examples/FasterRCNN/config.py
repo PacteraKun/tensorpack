@@ -61,15 +61,15 @@ _C.MODE_FPN = False
 
 # dataset -----------------------
 _C.DATA.BASEDIR = '/path/to/your/COCO/DIR'
-_C.DATA.TRAIN = ['train2014', 'valminusminival2014']   # i.e., trainval35k
-_C.DATA.VAL = 'minival2014'   # For now, only support evaluation on single dataset
-_C.DATA.NUM_CATEGORY = 80    # 80 categories.
+_C.DATA.TRAIN = ['train2014', ]   # i.e., trainval35k
+_C.DATA.VAL = 'val2014'   # For now, only support evaluation on single dataset
+_C.DATA.NUM_CATEGORY = 2    # 80 categories.
 _C.DATA.CLASS_NAMES = []  # NUM_CLASS (NUM_CATEGORY+1) strings, to be populated later by data loader. The first is BG.
 
 # basemodel ----------------------
 _C.BACKBONE.WEIGHTS = ''   # /path/to/weights.npz
-_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
-# RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
+#_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
+_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
 _C.BACKBONE.FREEZE_AFFINE = False   # do not train affine parameters inside norm layers
 _C.BACKBONE.NORM = 'FreezeBN'  # options: FreezeBN, SyncBN, GN
 _C.BACKBONE.FREEZE_AT = 2  # options: 0, 2
@@ -91,8 +91,8 @@ _C.TRAIN.WEIGHT_DECAY = 1e-4
 _C.TRAIN.BASE_LR = 1e-2
 _C.TRAIN.WARMUP = 1000    # in steps
 _C.TRAIN.STEPS_PER_EPOCH = 500
-# LR_SCHEDULE = [120000, 160000, 180000]  # "1x" schedule in detectron
-_C.TRAIN.LR_SCHEDULE = [240000, 320000, 360000]    # "2x" schedule in detectron
+_C.TRAIN.LR_SCHEDULE = [120000, 160000, 180000]  # "1x" schedule in detectron
+#_C.TRAIN.LR_SCHEDULE = [240000, 320000, 360000]    # "2x" schedule in detectron
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600, 1024
@@ -105,8 +105,8 @@ _C.PREPROC.PIXEL_STD = [58.395, 57.12, 57.375]
 
 # anchors -------------------------
 _C.RPN.ANCHOR_STRIDE = 16
-_C.RPN.ANCHOR_SIZES = (32, 64, 128, 256, 512)   # sqrtarea of the anchor box
-_C.RPN.ANCHOR_RATIOS = (0.5, 1., 2.)
+_C.RPN.ANCHOR_SIZES = (16, 32, 64, 128, 256)   # sqrtarea of the anchor box
+_C.RPN.ANCHOR_RATIOS = (0.5, 1., 0.25)
 _C.RPN.POSITIVE_ANCHOR_THRESH = 0.7
 _C.RPN.NEGATIVE_ANCHOR_THRESH = 0.3
 
@@ -135,6 +135,17 @@ _C.FRCNN.BBOX_REG_WEIGHTS = [10., 10., 5., 5.]  # Better but non-standard settin
 _C.FRCNN.FG_THRESH = 0.5
 _C.FRCNN.FG_RATIO = 0.25  # fg ratio in a ROI batch
 
+# fastrcnn cascade training
+_C.CASCADERCNN.FG_THRESH_1ST = 0.5
+_C.CASCADERCNN.FG_THRESH_2ND = 0.6
+_C.CASCADERCNN.FG_THRESH_3RD = 0.7
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE1: 1.0
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE2: 0.5
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE3: 0.25
+_C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1: (10., 10., 5., 5.)
+_C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2: (20., 20., 10., 10.)
+_C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3: (30., 30., 15., 15.)
+
 # FPN -------------------------
 _C.FPN.ANCHOR_STRIDES = (4, 8, 16, 32, 64)  # strides for each FPN level. Must be the same length as ANCHOR_SIZES
 _C.FPN.PROPOSAL_MODE = 'Level'  # 'Level', 'Joint'
@@ -143,6 +154,7 @@ _C.FPN.NORM = 'None'  # 'None', 'GN'
 # conv head and fc head are only used in FPN.
 # For C4 models, the head is C5
 _C.FPN.FRCNN_HEAD_FUNC = 'fastrcnn_2fc_head'
+#_C.FPN.CASCADE_RCNN_HEAD_FUNC = 'add_roi_cascade_2fc_head'
 # choices: fastrcnn_2fc_head, fastrcnn_4conv1fc_{,gn_}head
 _C.FPN.FRCNN_CONV_HEAD_DIM = 256
 _C.FPN.FRCNN_FC_HEAD_DIM = 1024
