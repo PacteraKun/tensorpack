@@ -716,6 +716,9 @@ class EvalCallback(Callback):
         self._in_names, self._out_names = in_names, out_names
 
     def _setup_graph(self):
+
+        print('All graph operaions names: \n')
+        print([n.name for n in tf.get_default_graph().as_graph_def().node])
         self.pred = self.trainer.get_predictor(self._in_names, self._out_names)
         self.df = get_eval_dataflow()
 
@@ -850,6 +853,4 @@ if __name__ == '__main__':
         else:
             # nccl mode has better speed than cpu mode
             trainer = SyncMultiGPUTrainerReplicated(cfg.TRAIN.NUM_GPUS, average=False, mode='nccl')
-        print('All graph operaions names: \n')
-        print([n.name for n in tf.get_default_graph().as_graph_def().node])
         launch_train_with_config(traincfg, trainer)
