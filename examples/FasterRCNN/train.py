@@ -744,8 +744,10 @@ if __name__ == '__main__':
             pred = OfflinePredictor(PredictConfig(
                 model=MODEL,
                 session_init=get_model_loader(args.load),
-                input_names=MODEL.get_inference_tensor_names()[0],
-                output_names=MODEL.get_inference_tensor_names()[1]))
+                #input_names=MODEL.get_inference_tensor_names()[0],
+                input_names=MODEL.get_inference_tensor_names_cascade()[0],
+                #output_names=MODEL.get_inference_tensor_names()[1])
+                output_names=MODEL.get_inference_tensor_names_cascade()[1])
             if args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
                 offline_evaluate(pred, args.evaluate)
@@ -784,7 +786,8 @@ if __name__ == '__main__':
             ScheduledHyperParamSetter(
                 'learning_rate', warmup_schedule, interp='linear', step_based=True),
             ScheduledHyperParamSetter('learning_rate', lr_schedule),
-            EvalCallback(*MODEL.get_inference_tensor_names()),
+            #EvalCallback(*MODEL.get_inference_tensor_names()),
+            EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
             PeakMemoryTracker(),
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
