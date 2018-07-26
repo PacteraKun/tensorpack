@@ -33,7 +33,7 @@ from basemodel import (
 import model_frcnn
 import model_mrcnn
 from model_frcnn import (
-    sample_fast_rcnn_targets, sample_cascade_rcnn_targets,
+    sample_fast_rcnn_targets, sample_cascade_rcnn_targets, fastrcnn_losses_cascade,
     fastrcnn_outputs, fastrcnn_losses, fastrcnn_predictions)
 from model_mrcnn import maskrcnn_upXconv_head, maskrcnn_loss
 from model_rpn import rpn_head, rpn_losses, generate_rpn_proposals
@@ -100,6 +100,35 @@ class DetectionModel(ModelDesc):
             rcnn_labels, rcnn_label_logits,
             encoded_boxes,
             fg_rcnn_box_logits)
+        return fastrcnn_label_loss, fastrcnn_box_loss
+    
+    def fastrcnn_training_cascade(self, image,
+                          rcnn_labels, fg_rcnn_boxes, gt_boxes_per_fg,
+                          rcnn_label_logits, fg_rcnn_box_logits, stage_num):
+        """
+        Args:
+            image (NCHW):
+            rcnn_labels (n): labels for each sampled targets
+            fg_rcnn_boxes (fg x 4): proposal boxes for each sampled foreground targets
+            gt_boxes_per_fg (fg x 4): matching gt boxes for each sampled foreground targets
+            rcnn_label_logits (n): label logits for each sampled targets
+            fg_rcnn_box_logits (fg x #class x 4): box logits for each sampled foreground targets
+        """
+
+        with tf.name_scope('fg_sample_patch_viz'):
+            fg_sampled_patches = crop_and_resize(
+                image, fg_rcnn_boxes,
+                tf.zeros([tf.shape(fg_rcnn_boxes)[0]], dtype=tf.int32), 300)
+            fg_sampled_patches = tf.transpose(fg_sampled_patches, [0, 2, 3, 1])
+            fg_sampled_patches = tf.reverse(fg_sampled_patches, axis=[-1])  # BGR->RGB
+            tf.summary.image('viz', fg_sampled_patches, max_outputs=30)
+
+        encoded_boxes = encode_bbox_target(
+            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
+        fastrcnn_label_loss, fastrcnn_box_loss = fastrcnn_losses_cascade(
+            rcnn_labels, rcnn_label_logits,
+            encoded_boxes,
+            fg_rcnn_box_logits, stage_num)
         return fastrcnn_label_loss, fastrcnn_box_loss
 
     def fastrcnn_inference(self, image_shape2d,
@@ -526,9 +555,9 @@ class ResNetFPNModel(DetectionModel):
             fg_sampled_boxes_1st = tf.gather(rcnn_boxes_1st, fg_inds_wrt_sample_1st)
             fg_fastrcnn_box_logits_1st = tf.gather(fastrcnn_box_logits_1st, fg_inds_wrt_sample_1st)
 
-            fastrcnn_label_loss_1st, fastrcnn_box_loss_1st = self.fastrcnn_training(
+            fastrcnn_label_loss_1st, fastrcnn_box_loss_1st = self.fastrcnn_training_cascade(
                 image, rcnn_labels_1st, fg_sampled_boxes_1st,
-                matched_gt_boxes_1st, fastrcnn_label_logits_1st, fg_fastrcnn_box_logits_1st)
+                matched_gt_boxes_1st, fastrcnn_label_logits_1st, fg_fastrcnn_box_logits_1st, 1)
 
             if cfg.MODE_MASK:
                 # maskrcnn loss
@@ -586,9 +615,9 @@ class ResNetFPNModel(DetectionModel):
             fg_sampled_boxes_2nd = tf.gather(rcnn_boxes_2nd, fg_inds_wrt_sample_2nd)
             fg_fastrcnn_box_logits_2nd = tf.gather(fastrcnn_box_logits_2nd, fg_inds_wrt_sample_2nd)
 
-            fastrcnn_label_loss_2nd, fastrcnn_box_loss_2nd = self.fastrcnn_training(
+            fastrcnn_label_loss_2nd, fastrcnn_box_loss_2nd = self.fastrcnn_training_cascade(
                 image, rcnn_labels_2nd, fg_sampled_boxes_2nd,
-                matched_gt_boxes_2nd, fastrcnn_label_logits_2nd, fg_fastrcnn_box_logits_2nd)
+                matched_gt_boxes_2nd, fastrcnn_label_logits_2nd, fg_fastrcnn_box_logits_2nd, 2)
         else:
             final_boxes_2nd, final_labels_2nd = self.fastrcnn_inference_cascade(
                 image_shape2d, rcnn_boxes_2nd, fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd, 2)
@@ -616,9 +645,9 @@ class ResNetFPNModel(DetectionModel):
             fg_sampled_boxes_3rd = tf.gather(rcnn_boxes_3rd, fg_inds_wrt_sample_3rd)
             fg_fastrcnn_box_logits_3rd = tf.gather(fastrcnn_box_logits_3rd, fg_inds_wrt_sample_3rd)
 
-            fastrcnn_label_loss_3rd, fastrcnn_box_loss_3rd = self.fastrcnn_training(
+            fastrcnn_label_loss_3rd, fastrcnn_box_loss_3rd = self.fastrcnn_training_cascade(
                 image, rcnn_labels_3rd, fg_sampled_boxes_3rd,
-                matched_gt_boxes_3rd, fastrcnn_label_logits_3rd, fg_fastrcnn_box_logits_3rd)
+                matched_gt_boxes_3rd, fastrcnn_label_logits_3rd, fg_fastrcnn_box_logits_3rd, 3)
         else:
             final_boxes_3rd, final_labels_3rd = self.fastrcnn_inference_cascade(
                 image_shape2d, rcnn_boxes_3rd, fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd, 3)          

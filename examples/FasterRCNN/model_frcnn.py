@@ -276,6 +276,51 @@ def fastrcnn_losses(labels, label_logits, fg_boxes, fg_box_logits):
     add_moving_summary(label_loss, box_loss, accuracy, fg_accuracy, false_negative)
     return label_loss, box_loss
 
+@under_name_scope()
+def fastrcnn_losses_cascade(labels, label_logits, fg_boxes, fg_box_logits, stage_num):
+    """
+    Args:
+        labels: n,
+        label_logits: nxC
+        fg_boxes: nfgx4, encoded
+        fg_box_logits: nfgxCx4
+    """
+    prefix = ''
+    if stage_num == 1:
+        prefix = '_1st'
+    elif stage_num == 2:
+        prefix = '_2nd'
+    elif stage_num == 3:
+        prefix = '_3rd'
+    label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=labels, logits=label_logits)
+    label_loss = tf.reduce_mean(label_loss, name='label_loss'+prefix)
+
+    fg_inds = tf.where(labels > 0)[:, 0]
+    fg_labels = tf.gather(labels, fg_inds)
+    num_fg = tf.size(fg_inds)
+    indices = tf.stack(
+        [tf.range(num_fg),
+         tf.to_int32(fg_labels)], axis=1)  # #fgx2
+    fg_box_logits = tf.gather_nd(fg_box_logits, indices)
+
+    with tf.name_scope('label_metrics'), tf.device('/cpu:0'):
+        prediction = tf.argmax(label_logits, axis=1, name='label_prediction')
+        correct = tf.to_float(tf.equal(prediction, labels))  # boolean/integer gather is unavailable on GPU
+        accuracy = tf.reduce_mean(correct, name='accuracy')
+        fg_label_pred = tf.argmax(tf.gather(label_logits, fg_inds), axis=1)
+        num_zero = tf.reduce_sum(tf.to_int32(tf.equal(fg_label_pred, 0)), name='num_zero')
+        false_negative = tf.truediv(num_zero, num_fg, name='false_negative')
+        fg_accuracy = tf.reduce_mean(
+            tf.gather(correct, fg_inds), name='fg_accuracy')
+
+    box_loss = tf.losses.huber_loss(
+        fg_boxes, fg_box_logits, reduction=tf.losses.Reduction.SUM)
+    box_loss = tf.truediv(
+        box_loss, tf.to_float(tf.shape(labels)[0]), name='box_loss'+prefix)
+
+    add_moving_summary(label_loss, box_loss, accuracy, fg_accuracy, false_negative)
+    return label_loss, box_loss
 
 @under_name_scope()
 def fastrcnn_predictions(boxes, probs):
