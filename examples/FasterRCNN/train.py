@@ -130,12 +130,8 @@ class DetectionModel(ModelDesc):
             fg_sampled_patches = tf.reverse(fg_sampled_patches, axis=[-1])  # BGR->RGB
             tf.summary.image('viz', fg_sampled_patches, max_outputs=30)
 
-        if stage_num == 1:
-            encoded_boxes = encode_bbox_target(
-                gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1, dtype=tf.float32)
-        else:
-            encoded_boxes = encode_bbox_target(
-                gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(bbox_reg_weights, dtype=tf.float32)
+        encoded_boxes = encode_bbox_target(
+            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
         fastrcnn_label_loss, fastrcnn_box_loss = fastrcnn_losses_cascade(
             rcnn_labels, rcnn_label_logits,
             encoded_boxes,
@@ -190,6 +186,7 @@ class DetectionModel(ModelDesc):
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
         elif stage_num == 3:
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
+
         prefix = ''
         if stage_num == 1:
             prefix = '_1st'
@@ -197,13 +194,14 @@ class DetectionModel(ModelDesc):
             prefix = '_2nd'
         elif stage_num == 3:
             prefix ='_3rd'
+
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
         rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
         label_probs = tf.nn.softmax(rcnn_label_logits, name='fastrcnn_all_probs')  # #proposal x #Class
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors)
+            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
 
         # indices: Nx2. Each index into (#proposal, #category)
@@ -234,7 +232,7 @@ class DetectionModel(ModelDesc):
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors)
+            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
 
         return decoded_boxes
