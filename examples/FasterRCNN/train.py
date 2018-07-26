@@ -115,6 +115,13 @@ class DetectionModel(ModelDesc):
             fg_rcnn_box_logits (fg x #class x 4): box logits for each sampled foreground targets
         """
 
+        if stage_num == 1:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1
+        elif stage_num == 2:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
+        elif stage_num == 3:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
+
         with tf.name_scope('fg_sample_patch_viz'):
             fg_sampled_patches = crop_and_resize(
                 image, fg_rcnn_boxes,
@@ -124,7 +131,7 @@ class DetectionModel(ModelDesc):
             tf.summary.image('viz', fg_sampled_patches, max_outputs=30)
 
         encoded_boxes = encode_bbox_target(
-            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
+            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(bbox_reg_weights, dtype=tf.float32)
         fastrcnn_label_loss, fastrcnn_box_loss = fastrcnn_losses_cascade(
             rcnn_labels, rcnn_label_logits,
             encoded_boxes,
@@ -173,6 +180,12 @@ class DetectionModel(ModelDesc):
             boxes (mx4):
             labels (m): each >= 1
         """
+        if stage_num == 1:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1
+        elif stage_num == 2:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
+        elif stage_num == 3:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
         prefix = ''
         if stage_num == 1:
             prefix = '_1st'
@@ -186,7 +199,7 @@ class DetectionModel(ModelDesc):
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
+            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors)
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
 
         # indices: Nx2. Each index into (#proposal, #category)
