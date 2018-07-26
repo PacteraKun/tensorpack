@@ -222,9 +222,12 @@ class DetectionModel(ModelDesc):
         Returns:
             boxes (mx4):
         """
+        prefix = ''        
         if stage_num == 2:
+            prefix = '_2nd'
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
         elif stage_num == 3:
+            prefix= '3rd'
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
     
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
@@ -233,7 +236,7 @@ class DetectionModel(ModelDesc):
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
             tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
-        decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
+        decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes'+prefix)
 
         return decoded_boxes
 
@@ -609,7 +612,8 @@ class ResNetFPNModel(DetectionModel):
         
         ########################### stage 2
         proposal_boxes_2nd = self.decode_boxes(image_shape2d, rcnn_boxes_1st, fastrcnn_box_logits_1st, 2)
-        
+        print("proposal_boxes_2nd shape: ", tf.shape(proposal_boxes_2nd))
+
         if is_training:
             rcnn_boxes_2nd, rcnn_labels_2nd, fg_inds_wrt_gt_2nd = sample_cascade_rcnn_targets(
                 proposal_boxes_2nd, gt_boxes, gt_labels, 2)
