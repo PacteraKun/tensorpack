@@ -850,4 +850,6 @@ if __name__ == '__main__':
         else:
             # nccl mode has better speed than cpu mode
             trainer = SyncMultiGPUTrainerReplicated(cfg.TRAIN.NUM_GPUS, average=False, mode='nccl')
+        print('All graph operaions names: \n')
+        print([n.name for n in tf.get_default_graph().as_graph_def().node])
         launch_train_with_config(traincfg, trainer)
