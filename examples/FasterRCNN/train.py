@@ -747,7 +747,7 @@ if __name__ == '__main__':
                 #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
                 #output_names=MODEL.get_inference_tensor_names()[1])
-                output_names=MODEL.get_inference_tensor_names_cascade()[1])
+                output_names=MODEL.get_inference_tensor_names_cascade()[1]))
             if args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
                 offline_evaluate(pred, args.evaluate)
