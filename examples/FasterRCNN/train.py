@@ -716,9 +716,6 @@ class EvalCallback(Callback):
         self._in_names, self._out_names = in_names, out_names
 
     def _setup_graph(self):
-
-        print('All graph operaions names: \n')
-        print([n.name for n in tf.get_default_graph().as_graph_def().node])
         self.pred = self.trainer.get_predictor(self._in_names, self._out_names)
         self.df = get_eval_dataflow()
 
@@ -825,8 +822,8 @@ if __name__ == '__main__':
             ScheduledHyperParamSetter(
                 'learning_rate', warmup_schedule, interp='linear', step_based=True),
             ScheduledHyperParamSetter('learning_rate', lr_schedule),
-            #EvalCallback(*MODEL.get_inference_tensor_names()),
-            EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
+            EvalCallback(*MODEL.get_inference_tensor_names()),
+            #EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
             PeakMemoryTracker(),
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
