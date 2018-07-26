@@ -210,6 +210,32 @@ def fastrcnn_outputs(feature, num_classes):
     box_regression = tf.reshape(box_regression, (-1, num_classes, 4))
     return classification, box_regression
 
+@layer_register(log_shape=True)
+def fastrcnn_outputs_cascade(feature, num_classes, stage_num):
+    """
+    Args:
+        feature (any shape):
+        num_classes(int): num_category + 1
+        stage_num:
+
+    Returns:
+        cls_logits (Nxnum_class), reg_logits (Nx num_class x 4)
+    """
+    prefix = ''
+    if stage_num == 1:
+        prefix = '_1st'
+    elif stage_num == 2:
+        prefix = '_2nd'
+    elif stage_num == 3:
+        prefix = '_3rd'
+    classification = FullyConnected(
+        'class'+prefix, feature, num_classes,
+        kernel_initializer=tf.random_normal_initializer(stddev=0.01))
+    box_regression = FullyConnected(
+        'box'+prefix, feature, num_classes * 4,
+        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+    box_regression = tf.reshape(box_regression, (-1, num_classes, 4))
+    return classification, box_regression
 
 @under_name_scope()
 def fastrcnn_losses(labels, label_logits, fg_boxes, fg_box_logits):
@@ -328,6 +354,53 @@ def fastrcnn_2fc_head(feature, num_classes):
     hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
     return fastrcnn_outputs('outputs', hidden, num_classes)
 
+@layer_register(log_shape=True)
+def cascade_rcnn_2fc_head_stage1(feature, num_classes):
+    """
+    Args:
+        feature (any shape):
+        num_classes(int): num_category + 1
+
+    Returns:
+        cls_logits (Nxnum_class), reg_logits (Nx num_class-1 x 4)
+    """
+    dim = cfg.FPN.FRCNN_FC_HEAD_DIM
+    init = tf.variance_scaling_initializer()
+    hidden = FullyConnected('fc6_1st', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
+    hidden = FullyConnected('fc7_1st', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
+    return fastrcnn_outputs_cascade('outputs_1st', hidden, num_classes, 1)
+
+@layer_register(log_shape=True)
+def cascade_rcnn_2fc_head_stage2(feature, num_classes):
+    """
+    Args:
+        feature (any shape):
+        num_classes(int): num_category + 1
+
+    Returns:
+        cls_logits (Nxnum_class), reg_logits (Nx num_class-1 x 4)
+    """
+    dim = cfg.FPN.FRCNN_FC_HEAD_DIM
+    init = tf.variance_scaling_initializer()
+    hidden = FullyConnected('fc6_2nd', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
+    hidden = FullyConnected('fc7_2nd', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
+    return fastrcnn_outputs_cascade('outputs_2nd', hidden, num_classes, 2)
+
+@layer_register(log_shape=True)
+def cascade_rcnn_2fc_head_stage3(feature, num_classes):
+    """
+    Args:
+        feature (any shape):
+        num_classes(int): num_category + 1
+
+    Returns:
+        cls_logits (Nxnum_class), reg_logits (Nx num_class-1 x 4)
+    """
+    dim = cfg.FPN.FRCNN_FC_HEAD_DIM
+    init = tf.variance_scaling_initializer()
+    hidden = FullyConnected('fc6_3rd', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
+    hidden = FullyConnected('fc7_3rd', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
+    return fastrcnn_outputs_cascade('outputs_3rd', hidden, num_classes, 3)
 
 @layer_register(log_shape=True)
 def fastrcnn_Xconv1fc_head(feature, num_classes, num_convs, norm=None):

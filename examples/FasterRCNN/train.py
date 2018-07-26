@@ -510,7 +510,7 @@ class ResNetFPNModel(DetectionModel):
 
         roi_feature_fastrcnn_1st = multilevel_roi_align(p23456[:4], rcnn_boxes_1st, 7)
 
-        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_head_func = getattr(model_frcnn, cfg.CASCADERCNN.HEAD_FUNC_STAGE1)
         fastrcnn_label_logits_1st, fastrcnn_box_logits_1st = fastrcnn_head_func(
             'cascade_rcnn_1st', roi_feature_fastrcnn_1st, cfg.DATA.NUM_CLASS)
 
@@ -574,7 +574,7 @@ class ResNetFPNModel(DetectionModel):
         
         roi_feature_fastrcnn_2nd = multilevel_roi_align(p23456[:4], rcnn_boxes_2nd, 7)
 
-        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_head_func = getattr(model_frcnn, cfg.CASCADERCNN.HEAD_FUNC_STAGE2)
         fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd = fastrcnn_head_func(
             'cascade_rcnn_2nd', roi_feature_fastrcnn_2nd, cfg.DATA.NUM_CLASS)
 
@@ -604,7 +604,7 @@ class ResNetFPNModel(DetectionModel):
         
         roi_feature_fastrcnn_3rd = multilevel_roi_align(p23456[:4], rcnn_boxes_3rd, 7)
 
-        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_head_func = getattr(model_frcnn, cfg.CASCADERCNN.HEAD_FUNC_STAGE3)
         fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd = fastrcnn_head_func(
             'cascade_rcnn_3rd', roi_feature_fastrcnn_3rd, cfg.DATA.NUM_CLASS)
 

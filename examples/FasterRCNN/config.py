@@ -146,6 +146,10 @@ _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1: (10., 10., 5., 5.)
 _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2: (20., 20., 10., 10.)
 _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3: (30., 30., 15., 15.)
 
+_C.CASCADERCNN.HEAD_FUNC_STAGE1 = 'cascade_rcnn_2fc_head_stage1'
+_C.CASCADERCNN.HEAD_FUNC_STAGE2 = 'cascade_rcnn_2fc_head_stage2'
+_C.CASCADERCNN.HEAD_FUNC_STAGE3 = 'cascade_rcnn_2fc_head_stage3'
+
 # FPN -------------------------
 _C.FPN.ANCHOR_STRIDES = (4, 8, 16, 32, 64)  # strides for each FPN level. Must be the same length as ANCHOR_SIZES
 _C.FPN.PROPOSAL_MODE = 'Level'  # 'Level', 'Joint'
