@@ -33,7 +33,7 @@ from basemodel import (
 import model_frcnn
 import model_mrcnn
 from model_frcnn import (
-    sample_fast_rcnn_targets,
+    sample_fast_rcnn_targets, sample_cascade_rcnn_targets,
     fastrcnn_outputs, fastrcnn_losses, fastrcnn_predictions)
 from model_mrcnn import maskrcnn_upXconv_head, maskrcnn_loss
 from model_rpn import rpn_head, rpn_losses, generate_rpn_proposals
@@ -130,6 +130,33 @@ class DetectionModel(ModelDesc):
         final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name='final_boxes')
         final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels')
         return final_boxes, final_labels
+    
+    def decode_boxes(self, image_shape2d, rcnn_boxes, rcnn_box_logits, stage_num):
+        """
+        Args:
+            image_shape2d: h, w
+            rcnn_boxes (nx4): the proposal boxes
+            rcnn_box_logits (nx #class x 4):
+            stage_num: 
+
+        Returns:
+            boxes (mx4):
+        """
+        if stage_num == 2:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
+        elif stage_num == 3:
+            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
+    
+        rcnn_box_logits = rcnn_box_logits[:, 1:, :]
+        rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
+        anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
+        decoded_boxes = decode_bbox_target(
+            rcnn_box_logits /
+            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors)
+        decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
+
+        return decoded_boxes
+
 
     def get_inference_tensor_names(self):
         """
@@ -140,6 +167,19 @@ class DetectionModel(ModelDesc):
             [str]: output names
         """
         out = ['final_boxes', 'final_probs', 'final_labels']
+        if cfg.MODE_MASK:
+            out.append('final_masks')
+        return ['image'], out
+
+    def get_inference_tensor_names_cascade(self):
+        """
+        Returns two lists of tensor names to be used to create an inference callable.
+
+        Returns:
+            [str]: input names
+            [str]: output names
+        """
+        out = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
         if cfg.MODE_MASK:
             out.append('final_masks')
         return ['image'], out
@@ -393,6 +433,173 @@ class ResNetFPNModel(DetectionModel):
                 indices = tf.stack([tf.range(tf.size(final_labels)), tf.to_int32(final_labels) - 1], axis=1)
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='final_masks')
+
+    def build_graph_cascade_rcnn(self, *inputs):
+
+        num_fpn_level = len(cfg.FPN.ANCHOR_STRIDES)
+        assert len(cfg.RPN.ANCHOR_SIZES) == num_fpn_level
+        is_training = get_current_tower_context().is_training
+        image = inputs[0]
+        input_anchors = inputs[1: 1 + 2 * num_fpn_level]
+        multilevel_anchors = [RPNAnchors(*args) for args in
+                              zip(get_all_anchors_fpn(), input_anchors[0::2], input_anchors[1::2])]
+        gt_boxes, gt_labels = inputs[11], inputs[12]
+        if cfg.MODE_MASK:
+            gt_masks = inputs[-1]
+
+        image = self.preprocess(image)     # 1CHW
+        image_shape2d = tf.shape(image)[2:]     # h,w
+
+        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCK)
+        p23456 = fpn_model('fpn', c2345)
+        self.slice_feature_and_anchors(image_shape2d, p23456, multilevel_anchors)
+
+        # Multi-Level RPN Proposals
+        rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS))
+                       for pi in p23456]
+        multilevel_label_logits = [k[0] for k in rpn_outputs]
+        multilevel_box_logits = [k[1] for k in rpn_outputs]
+
+        proposal_boxes_1st, proposal_scores = generate_fpn_proposals(
+            multilevel_anchors, multilevel_label_logits,
+            multilevel_box_logits, image_shape2d)
+
+        ########################### stage 1
+        if is_training:
+            rcnn_boxes_1st, rcnn_labels_1st, fg_inds_wrt_gt_1st = sample_cascade_rcnn_targets(
+                proposal_boxes_1st, gt_boxes, gt_labels, 1)
+        else:
+            # The boxes to be used to crop RoIs.
+            rcnn_boxes_1st = proposal_boxes_1st
+
+        roi_feature_fastrcnn_1st = multilevel_roi_align(p23456[:4], rcnn_boxes_1st, 7)
+
+        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_label_logits_1st, fastrcnn_box_logits_1st = fastrcnn_head_func(
+            'cascade_rcnn_1st', roi_feature_fastrcnn_1st, cfg.DATA.NUM_CLASS)
+
+        if is_training:
+            # rpn loss:
+            rpn_label_loss, rpn_box_loss = multilevel_rpn_losses(
+                multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+
+            # fastrcnn loss:
+            matched_gt_boxes_1st = tf.gather(gt_boxes, fg_inds_wrt_gt_1st)
+
+            fg_inds_wrt_sample_1st = tf.reshape(tf.where(rcnn_labels_1st > 0), [-1])   # fg inds w.r.t all samples
+            fg_sampled_boxes_1st = tf.gather(rcnn_boxes_1st, fg_inds_wrt_sample_1st)
+            fg_fastrcnn_box_logits_1st = tf.gather(fastrcnn_box_logits_1st, fg_inds_wrt_sample_1st)
+
+            fastrcnn_label_loss_1st, fastrcnn_box_loss_1st = self.fastrcnn_training(
+                image, rcnn_labels_1st, fg_sampled_boxes_1st,
+                matched_gt_boxes_1st, fastrcnn_label_logits_1st, fg_fastrcnn_box_logits_1st)
+
+            if cfg.MODE_MASK:
+                # maskrcnn loss
+                fg_labels = tf.gather(rcnn_labels, fg_inds_wrt_sample)
+                roi_feature_maskrcnn = multilevel_roi_align(
+                    p23456[:4], fg_sampled_boxes, 14,
+                    name_scope='multilevel_roi_align_mask')
+                maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
+                mask_logits = maskrcnn_head_func(
+                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY)   # #fg x #cat x 28 x 28
+
+                target_masks_for_fg = crop_and_resize(
+                    tf.expand_dims(gt_masks, 1),
+                    fg_sampled_boxes,
+                    fg_inds_wrt_gt, 28,
+                    pad_border=False)  # fg x 1x28x28
+                target_masks_for_fg = tf.squeeze(target_masks_for_fg, 1, 'sampled_fg_mask_targets')
+                mrcnn_loss = maskrcnn_loss(mask_logits, fg_labels, target_masks_for_fg)
+            else:
+                mrcnn_loss = 0.0
+        
+        else:
+            final_boxes_1st, final_labels_1st = self.fastrcnn_inference(
+                image_shape2d, rcnn_boxes_1st, fastrcnn_label_logits_1st, fastrcnn_box_logits_1st)
+            if cfg.MODE_MASK:
+                # Cascade inference needs roi transform with refined boxes.
+                roi_feature_maskrcnn = multilevel_roi_align(p23456[:4], final_boxes, 14)
+                maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
+                mask_logits = maskrcnn_head_func(
+                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY)   # #fg x #cat x 28 x 28
+                indices = tf.stack([tf.range(tf.size(final_labels)), tf.to_int32(final_labels) - 1], axis=1)
+                final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
+                tf.sigmoid(final_mask_logits, name='final_masks')
+        
+        ########################### stage 2
+        proposal_boxes_2nd = self.decode_boxes(image_shape2d, rcnn_boxes_1st, fastrcnn_box_logits_1st, 2)
+        
+        if is_training:
+            rcnn_boxes_2nd, rcnn_labels_2nd, fg_inds_wrt_gt_2nd = sample_cascade_rcnn_targets(
+                proposal_boxes_2nd, gt_boxes, gt_labels, 2)
+        else:
+            rcnn_boxes_2nd = proposal_boxes_2nd
+        
+        roi_feature_fastrcnn_2nd = multilevel_roi_align(p23456[:4], rcnn_boxes_2nd, 7)
+
+        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd = fastrcnn_head_func(
+            'cascade_rcnn_2nd', roi_feature_fastrcnn_2nd, cfg.DATA.NUM_CLASS)
+
+        if is_training:
+            # fastrcnn loss:
+            matched_gt_boxes_2nd = tf.gather(gt_boxes, fg_inds_wrt_gt_2nd)
+
+            fg_inds_wrt_sample_2nd = tf.reshape(tf.where(rcnn_labels_2nd > 0), [-1])   # fg inds w.r.t all samples
+            fg_sampled_boxes_2nd = tf.gather(rcnn_boxes_2nd, fg_inds_wrt_sample_2nd)
+            fg_fastrcnn_box_logits_2nd = tf.gather(fastrcnn_box_logits_2nd, fg_inds_wrt_sample_2nd)
+
+            fastrcnn_label_loss_2nd, fastrcnn_box_loss_2nd = self.fastrcnn_training(
+                image, rcnn_labels_2nd, fg_sampled_boxes_2nd,
+                matched_gt_boxes_2nd, fastrcnn_label_logits_2nd, fg_fastrcnn_box_logits_2nd)
+        else:
+            final_boxes_2nd, final_labels_2nd = self.fastrcnn_inference(
+                image_shape2d, rcnn_boxes_2nd, fastrcnn_label_logits_2nd, fastrcnn_box_logits_2nd)
+        
+        ########################### stage 3
+        proposal_boxes_3rd = self.decode_boxes(image_shape2d, rcnn_boxes_2nd, fastrcnn_box_logits_2nd, 3)
+        
+        if is_training:
+            rcnn_boxes_3rd, rcnn_labels_3rd, fg_inds_wrt_gt_3rd = sample_cascade_rcnn_targets(
+                proposal_boxes_3rd, gt_boxes, gt_labels, 3)
+        else:
+            rcnn_boxes_3rd = proposal_boxes_3rd
+        
+        roi_feature_fastrcnn_3rd = multilevel_roi_align(p23456[:4], rcnn_boxes_3rd, 7)
+
+        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+        fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd = fastrcnn_head_func(
+            'cascade_rcnn_3rd', roi_feature_fastrcnn_3rd, cfg.DATA.NUM_CLASS)
+
+        if is_training:
+            # fastrcnn loss:
+            matched_gt_boxes_3rd = tf.gather(gt_boxes, fg_inds_wrt_gt_3rd)
+
+            fg_inds_wrt_sample_3rd = tf.reshape(tf.where(rcnn_labels_3rd > 0), [-1])   # fg inds w.r.t all samples
+            fg_sampled_boxes_3rd = tf.gather(rcnn_boxes_3rd, fg_inds_wrt_sample_3rd)
+            fg_fastrcnn_box_logits_3rd = tf.gather(fastrcnn_box_logits_3rd, fg_inds_wrt_sample_3rd)
+
+            fastrcnn_label_loss_3rd, fastrcnn_box_loss_3rd = self.fastrcnn_training(
+                image, rcnn_labels_3rd, fg_sampled_boxes_3rd,
+                matched_gt_boxes_3rd, fastrcnn_label_logits_3rd, fg_fastrcnn_box_logits_3rd)
+        else:
+            final_boxes_3rd, final_labels_3rd = self.fastrcnn_inference(
+                image_shape2d, rcnn_boxes_3rd, fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd)          
+        
+        if is_training:
+            wd_cost = regularize_cost(
+                '(?:group1|group2|group3|rpn|fpn|fastrcnn|maskrcnn|cascade_rcnn)/.*W',
+                l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+
+            total_cost = tf.add_n([rpn_label_loss, rpn_box_loss,
+                                   fastrcnn_label_loss_1st, fastrcnn_box_loss_1st,
+                                   fastrcnn_label_loss_2nd, fastrcnn_box_loss_2nd,
+                                   fastrcnn_label_loss_3rd, fastrcnn_box_loss_3rd,
+                                   mrcnn_loss, wd_cost], 'total_cost')
+
+            add_moving_summary(total_cost, wd_cost)
+            return total_cost * (1. / cfg.TRAIN.NUM_GPUS)
 
 
 def visualize(model, model_path, nr_visualize=100, output_dir='output'):
