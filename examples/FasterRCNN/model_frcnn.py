@@ -35,6 +35,33 @@ def proposal_metrics(iou):
             summaries.append(recall)
     add_moving_summary(*summaries)
 
+@under_name_scope()
+def proposal_metrics_cascade(iou, i):
+    """
+    Add summaries for RPN proposals.
+
+    Args:
+        iou: nxm, #proposal x #gt
+    """
+    # find best roi for each gt, for summary only
+    prefix = ''
+    if i == 1:
+        prefix = '_1st'
+    elif i == 2:
+        prefix = '_2nd'
+    elif i == 3:
+        prefix = '_3rd'
+    best_iou = tf.reduce_max(iou, axis=0)
+    mean_best_iou = tf.reduce_mean(best_iou, name='best_iou_per_gt'+prefix)
+    summaries = [mean_best_iou]
+    with tf.device('/cpu:0'):
+        for th in [0.3, 0.5]:
+            recall = tf.truediv(
+                tf.count_nonzero(best_iou >= th),
+                tf.size(best_iou, out_type=tf.int64),
+                name='recall_iou{}'.format(th)+prefix)
+            summaries.append(recall)
+    add_moving_summary(*summaries)
 
 @under_name_scope()
 def sample_fast_rcnn_targets(boxes, gt_boxes, gt_labels):
@@ -96,6 +123,73 @@ def sample_fast_rcnn_targets(boxes, gt_boxes, gt_labels):
         tf.stop_gradient(ret_labels, name='sampled_labels'), \
         tf.stop_gradient(fg_inds_wrt_gt)
 
+@under_name_scope()
+def sample_cascade_rcnn_targets(boxes, gt_boxes, gt_labels, stage_num):
+    """
+    Sample some ROIs from all proposals for training.
+    #fg is guaranteed to be > 0, because grount truth boxes are added as RoIs.
+
+    Args:
+        boxes: nx4 region proposals, floatbox
+        gt_boxes: mx4, floatbox
+        gt_labels: m, int32
+        stage_num:
+
+    Returns:
+        sampled_boxes: tx4 floatbox, the rois
+        sampled_labels: t labels, in [0, #class-1]. Positive means foreground.
+        fg_inds_wrt_gt: #fg indices, each in range [0, m-1].
+            It contains the matching GT of each foreground roi.
+    """
+    if stage_num == 1:
+        fg_thresh = cfg.CASCADERCNN.FG_THRESH_1ST
+    if stage_num == 2:
+        fg_thresh = cfg.CASCADERCNN.FG_THRESH_2ND
+    elif stage_num == 3:
+        fg_thresh = cfg.CASCADERCNN.FG_THRESH_3RD
+
+    iou = pairwise_iou(boxes, gt_boxes)     # nxm
+    proposal_metrics_cascade(iou, stage_num)
+
+    # add ground truth as proposals as well
+    boxes = tf.concat([boxes, gt_boxes], axis=0)    # (n+m) x 4
+    iou = tf.concat([iou, tf.eye(tf.shape(gt_boxes)[0])], axis=0)   # (n+m) x m
+    # #proposal=n+m from now on
+
+    def sample_fg_bg(iou):
+        fg_mask = tf.reduce_max(iou, axis=1) >= fg_thresh
+
+        fg_inds = tf.reshape(tf.where(fg_mask), [-1])
+        num_fg = tf.minimum(int(
+            cfg.FRCNN.BATCH_PER_IM * cfg.FRCNN.FG_RATIO),
+            tf.size(fg_inds), name='num_fg')
+        fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
+
+        bg_inds = tf.reshape(tf.where(tf.logical_not(fg_mask)), [-1])
+        num_bg = tf.minimum(
+            cfg.FRCNN.BATCH_PER_IM - num_fg,
+            tf.size(bg_inds), name='num_bg')
+        bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
+
+        add_moving_summary(num_fg, num_bg)
+        return fg_inds, bg_inds
+
+    fg_inds, bg_inds = sample_fg_bg(iou)
+    # fg,bg indices w.r.t proposals
+
+    best_iou_ind = tf.argmax(iou, axis=1)   # #proposal, each in 0~m-1
+    fg_inds_wrt_gt = tf.gather(best_iou_ind, fg_inds)   # num_fg
+
+    all_indices = tf.concat([fg_inds, bg_inds], axis=0)   # indices w.r.t all n+m proposal boxes
+    ret_boxes = tf.gather(boxes, all_indices)
+
+    ret_labels = tf.concat(
+        [tf.gather(gt_labels, fg_inds_wrt_gt),
+         tf.zeros_like(bg_inds, dtype=tf.int64)], axis=0)
+    # stop the gradient -- they are meant to be training targets
+    return tf.stop_gradient(ret_boxes, name='sampled_proposal_boxes'), \
+        tf.stop_gradient(ret_labels, name='sampled_labels'), \
+        tf.stop_gradient(fg_inds_wrt_gt)
 
 @layer_register(log_shape=True)
 def fastrcnn_outputs(feature, num_classes):
