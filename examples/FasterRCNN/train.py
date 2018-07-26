@@ -369,7 +369,7 @@ class ResNetFPNModel(DetectionModel):
 
                 anchors[i] = anchors[i].narrow_to(p23456[i])
 
-    def build_graph(self, *inputs):
+    def build_graph_faster_rcnn(self, *inputs):
         num_fpn_level = len(cfg.FPN.ANCHOR_STRIDES)
         assert len(cfg.RPN.ANCHOR_SIZES) == num_fpn_level
         is_training = get_current_tower_context().is_training
@@ -470,7 +470,7 @@ class ResNetFPNModel(DetectionModel):
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='final_masks')
 
-    def build_graph_cascade_rcnn(self, *inputs):
+    def build_graph(self, *inputs):
 
         num_fpn_level = len(cfg.FPN.ANCHOR_STRIDES)
         assert len(cfg.RPN.ANCHOR_SIZES) == num_fpn_level
@@ -822,8 +822,8 @@ if __name__ == '__main__':
             ScheduledHyperParamSetter(
                 'learning_rate', warmup_schedule, interp='linear', step_based=True),
             ScheduledHyperParamSetter('learning_rate', lr_schedule),
-            EvalCallback(*MODEL.get_inference_tensor_names()),
-            #EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
+            #EvalCallback(*MODEL.get_inference_tensor_names()),
+            EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
             PeakMemoryTracker(),
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
