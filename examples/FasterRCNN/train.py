@@ -130,8 +130,12 @@ class DetectionModel(ModelDesc):
             fg_sampled_patches = tf.reverse(fg_sampled_patches, axis=[-1])  # BGR->RGB
             tf.summary.image('viz', fg_sampled_patches, max_outputs=30)
 
-        encoded_boxes = encode_bbox_target(
-            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(bbox_reg_weights, dtype=tf.float32)
+        if stage_num == 1:
+            encoded_boxes = encode_bbox_target(
+                gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1, dtype=tf.float32)
+        else:
+            encoded_boxes = encode_bbox_target(
+                gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(bbox_reg_weights, dtype=tf.float32)
         fastrcnn_label_loss, fastrcnn_box_loss = fastrcnn_losses_cascade(
             rcnn_labels, rcnn_label_logits,
             encoded_boxes,
