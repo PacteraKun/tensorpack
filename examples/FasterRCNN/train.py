@@ -240,11 +240,8 @@ class DetectionModel(ModelDesc):
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes'+prefix)
 
         assert decoded_boxes.shape[1] == cfg.DATA.NUM_CATEGORY
-        shape = decoded_boxes.get_shape().as_list()   
-        dim1 = shape[-1] 
-        dim2 = np.prod(shape[:-1]) 
         #decoded_boxes = tf.transpose(decoded_boxes, [1, 0, 2])  # #catxnx4 
-        decoded_boxes = tf.reshpae(decoded_boxes, [dim2, dim1])
+        decoded_boxes = tf.reshpae(decoded_boxes, [-1, 4])
 
         return decoded_boxes
 
