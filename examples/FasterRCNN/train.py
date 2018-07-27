@@ -233,14 +233,12 @@ class DetectionModel(ModelDesc):
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
         rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
-        print('anchors shape: ', anchors.get_shape())
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
             tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors) # #proposal x #Cat x 4
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes'+prefix)
 
         assert decoded_boxes.shape[1] == cfg.DATA.NUM_CATEGORY
-        #decoded_boxes = tf.transpose(decoded_boxes, [1, 0, 2])  # #catxnx4 
         decoded_boxes = tf.reshape(decoded_boxes, [-1, 4])
 
         return decoded_boxes
@@ -267,10 +265,12 @@ class DetectionModel(ModelDesc):
             [str]: input names
             [str]: output names
         """
-        out = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
+        out_1st = ['final_boxes_1st', 'final_probs_1st', 'final_labels_1st']
+        out_2nd = ['final_boxes_2nd', 'final_probs_2nd', 'final_labels_2nd']
+        out_3rd = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
         if cfg.MODE_MASK:
             out.append('final_masks')
-        return ['image'], out
+        return ['image'], out_1st, out_2nd, out_3rd
 
 
 class ResNetC4Model(DetectionModel):
@@ -616,11 +616,7 @@ class ResNetFPNModel(DetectionModel):
                 tf.sigmoid(final_mask_logits, name='final_masks')
         
         ########################### stage 2
-        print('proposal_boxes_1st shape: ', proposal_boxes_1st.get_shape())
-        print('rcnn_boxes_1st shape: ', rcnn_boxes_1st.get_shape())
-        print('fastrcnn_box_logits_1st shape: ', fastrcnn_box_logits_1st.get_shape())
         proposal_boxes_2nd = self.decode_boxes(image_shape2d, rcnn_boxes_1st, fastrcnn_box_logits_1st, 2)
-        print("proposal_boxes_2nd shape: ", proposal_boxes_2nd.get_shape())
 
         if is_training:
             rcnn_boxes_2nd, rcnn_labels_2nd, fg_inds_wrt_gt_2nd = sample_cascade_rcnn_targets(
@@ -766,7 +762,6 @@ def predict(pred_func, input_file):
     viz = np.concatenate((img, final), axis=1)
     tpviz.interactive_imshow(viz)
 
-
 class EvalCallback(Callback):
     def __init__(self, in_names, out_names):
         self._in_names, self._out_names = in_names, out_names
@@ -800,6 +795,56 @@ class EvalCallback(Callback):
         if self.epoch_num in self.epochs_to_eval:
             self._eval()
 
+class EvalCallback_cascade(Callback):
+    def __init__(self, in_names, out_names):
+        self._in_names, self._out_names_1st, self._out_names_2nd, self.out_names_3rd = in_names, out_names_1st, out_names_2nd, out_names_3rd
+
+    def _setup_graph(self):
+        self.pred_1st = self.trainer.get_predictor(self._in_names, self._out_names_1st)
+        self.pred_2nd = self.trainer.get_predictor(self._in_names, self._out_names_2nd)
+        self.pred_3rd = self.trainer.get_predictor(self._in_names, self._out_names_3rd)
+        self.df = get_eval_dataflow()
+
+    def _before_train(self):
+        EVAL_TIMES = 360000  # eval 5 times during training
+        interval = self.trainer.max_epoch // (EVAL_TIMES + 1)
+        self.epochs_to_eval = set([interval * k for k in range(1, EVAL_TIMES + 1)])
+        self.epochs_to_eval.add(self.trainer.max_epoch)
+        logger.info("[EvalCallback] Will evaluate at epoch " + str(sorted(self.epochs_to_eval)))
+
+    def _eval(self):
+        all_results_1st = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_1st))
+        all_results_2nd = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_2nd))
+        all_results_3rd = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_3rd))
+        output_file_1st = os.path.join(
+            logger.get_logger_dir(), '1st_outputs{}.json'.format(self.global_step))
+        output_file_2nd = os.path.join(
+            logger.get_logger_dir(), '2nd_outputs{}.json'.format(self.global_step))
+        output_file_3rd = os.path.join(
+            logger.get_logger_dir(), '3rd_outputs{}.json'.format(self.global_step))
+        with open(output_file_1st, 'w') as f:
+            json.dump(all_results_1st, f)
+        with open(output_file_2nd, 'w') as f:
+            json.dump(all_results_2nd, f)
+        with open(output_file_3rd, 'w') as f:
+            json.dump(all_results_3rd, f)
+        try:
+            scores_1st = print_evaluation_scores(output_file_1st)
+            scores_2nd = print_evaluation_scores(output_file_2nd)
+            scores_3rd = print_evaluation_scores(output_file_3rd)
+        except Exception:
+            logger.exception("Exception in COCO evaluation.")
+            scores = {}
+        for k, v in scores_1st.items():
+            self.trainer.monitors.put_scalar(k, v)
+        for k, v in scores_2nd.items():
+            self.trainer.monitors.put_scalar(k, v)
+        for k, v in scores_3rd.items():
+            self.trainer.monitors.put_scalar(k, v)
+
+    def _trigger_epoch(self):
+        if self.epoch_num in self.epochs_to_eval:
+            self._eval()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -839,7 +884,10 @@ if __name__ == '__main__':
                 #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
                 #output_names=MODEL.get_inference_tensor_names()[1])
-                output_names=MODEL.get_inference_tensor_names_cascade()[1]))
+                output_names_1st=MODEL.get_inference_tensor_names_cascade()[1),                
+                output_names_2nd=MODEL.get_inference_tensor_names_cascade()[2],
+                output_names_3rd=MODEL.get_inference_tensor_names_cascade()[3])
+                )
             if args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
                 offline_evaluate(pred, args.evaluate)
@@ -879,7 +927,7 @@ if __name__ == '__main__':
                 'learning_rate', warmup_schedule, interp='linear', step_based=True),
             ScheduledHyperParamSetter('learning_rate', lr_schedule),
             #EvalCallback(*MODEL.get_inference_tensor_names()),
-            EvalCallback(*MODEL.get_inference_tensor_names_cascade()),
+            EvalCallback_cascade(*MODEL.get_inference_tensor_names_cascade()),
             PeakMemoryTracker(),
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
