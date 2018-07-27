@@ -611,6 +611,7 @@ class ResNetFPNModel(DetectionModel):
                 tf.sigmoid(final_mask_logits, name='final_masks')
         
         ########################### stage 2
+        print('proposal_boxes_1st shape: ', tf.shape(proposal_boxes_1st))
         print('rcnn_boxes_1st shape: ', tf.shape(rcnn_boxes_1st))
         print('fastrcnn_box_logits_1st shape: ', tf.shape(fastrcnn_box_logits_1st))
         proposal_boxes_2nd = self.decode_boxes(image_shape2d, rcnn_boxes_1st, fastrcnn_box_logits_1st, 2)
