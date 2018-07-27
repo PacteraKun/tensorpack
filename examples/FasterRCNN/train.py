@@ -241,7 +241,7 @@ class DetectionModel(ModelDesc):
 
         assert decoded_boxes.shape[1] == cfg.DATA.NUM_CATEGORY
         #decoded_boxes = tf.transpose(decoded_boxes, [1, 0, 2])  # #catxnx4 
-        decoded_boxes = tf.reshpae(decoded_boxes, [-1, 4])
+        decoded_boxes = tf.reshape(decoded_boxes, [-1, 4])
 
         return decoded_boxes
 
