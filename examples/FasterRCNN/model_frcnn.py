@@ -55,7 +55,7 @@ def proposal_metrics_cascade(iou, i):
     mean_best_iou = tf.reduce_mean(best_iou, name='best_iou_per_gt'+prefix)
     summaries = [mean_best_iou]
     with tf.device('/cpu:0'):
-        for th in [0.3, 0.5]:
+        for th in [0.5, 0.6, 0.7, 0.8, 0.9]:
             recall = tf.truediv(
                 tf.count_nonzero(best_iou >= th),
                 tf.size(best_iou, out_type=tf.int64),
@@ -141,11 +141,15 @@ def sample_cascade_rcnn_targets(boxes, gt_boxes, gt_labels, stage_num):
         fg_inds_wrt_gt: #fg indices, each in range [0, m-1].
             It contains the matching GT of each foreground roi.
     """
+    prefix = ''
     if stage_num == 1:
+        prefix = '_1st'
         fg_thresh = cfg.CASCADERCNN.FG_THRESH_1ST
     if stage_num == 2:
+        prefix = '_2nd'
         fg_thresh = cfg.CASCADERCNN.FG_THRESH_2ND
     elif stage_num == 3:
+        prefix = '_3rd'
         fg_thresh = cfg.CASCADERCNN.FG_THRESH_3RD
 
     iou = pairwise_iou(boxes, gt_boxes)     # nxm
@@ -156,25 +160,25 @@ def sample_cascade_rcnn_targets(boxes, gt_boxes, gt_labels, stage_num):
     iou = tf.concat([iou, tf.eye(tf.shape(gt_boxes)[0])], axis=0)   # (n+m) x m
     # #proposal=n+m from now on
 
-    def sample_fg_bg(iou):
+    def sample_fg_bg(iou, prefix):
         fg_mask = tf.reduce_max(iou, axis=1) >= fg_thresh
 
         fg_inds = tf.reshape(tf.where(fg_mask), [-1])
         num_fg = tf.minimum(int(
             cfg.FRCNN.BATCH_PER_IM * cfg.FRCNN.FG_RATIO),
-            tf.size(fg_inds), name='num_fg')
+            tf.size(fg_inds), name='num_fg'+prefix)
         fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
 
         bg_inds = tf.reshape(tf.where(tf.logical_not(fg_mask)), [-1])
         num_bg = tf.minimum(
             cfg.FRCNN.BATCH_PER_IM - num_fg,
-            tf.size(bg_inds), name='num_bg')
+            tf.size(bg_inds), name='num_bg'+prefix)
         bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
 
         add_moving_summary(num_fg, num_bg)
         return fg_inds, bg_inds
 
-    fg_inds, bg_inds = sample_fg_bg(iou)
+    fg_inds, bg_inds = sample_fg_bg(iou, prefix)
     # fg,bg indices w.r.t proposals
 
     best_iou_ind = tf.argmax(iou, axis=1)   # #proposal, each in 0~m-1
@@ -187,8 +191,8 @@ def sample_cascade_rcnn_targets(boxes, gt_boxes, gt_labels, stage_num):
         [tf.gather(gt_labels, fg_inds_wrt_gt),
          tf.zeros_like(bg_inds, dtype=tf.int64)], axis=0)
     # stop the gradient -- they are meant to be training targets
-    return tf.stop_gradient(ret_boxes, name='sampled_proposal_boxes'), \
-        tf.stop_gradient(ret_labels, name='sampled_labels'), \
+    return tf.stop_gradient(ret_boxes, name='sampled_proposal_boxes'+prefix), \
+        tf.stop_gradient(ret_labels, name='sampled_labels'+prefix), \
         tf.stop_gradient(fg_inds_wrt_gt)
 
 @layer_register(log_shape=True)
