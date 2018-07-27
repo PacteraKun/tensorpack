@@ -884,7 +884,7 @@ if __name__ == '__main__':
                 #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
                 #output_names=MODEL.get_inference_tensor_names()[1])
-                output_names_1st=MODEL.get_inference_tensor_names_cascade()[1),                
+                output_names_1st=MODEL.get_inference_tensor_names_cascade()[1],                
                 output_names_2nd=MODEL.get_inference_tensor_names_cascade()[2],
                 output_names_3rd=MODEL.get_inference_tensor_names_cascade()[3])
                 )
