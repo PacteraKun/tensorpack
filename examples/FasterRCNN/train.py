@@ -236,8 +236,13 @@ class DetectionModel(ModelDesc):
         print('anchors shape: ', anchors.get_shape())
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
+            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors) # #proposal x #Cat x 4
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes'+prefix)
+
+        assert decoded_boxes.shape[1] == cfg.DATA.NUM_CATEGORY
+        a, b, c = decoded_boxes.get_shape() 
+        #decoded_boxes = tf.transpose(decoded_boxes, [1, 0, 2])  # #catxnx4 
+        decoded_boxes = tf.reshpae(decode_boxes, [a*b, c])
 
         return decoded_boxes
 
