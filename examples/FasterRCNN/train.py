@@ -233,6 +233,7 @@ class DetectionModel(ModelDesc):
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
         rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
+        print('anchors shape: ', anchors.get_shape())
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
             tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
