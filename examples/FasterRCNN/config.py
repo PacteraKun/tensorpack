@@ -97,7 +97,7 @@ _C.TRAIN.LR_SCHEDULE = [120000, 160000, 180000]  # "1x" schedule in detectron
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600, 1024
 _C.PREPROC.SHORT_EDGE_SIZE = 800
-_C.PREPROC.MAX_SIZE = 1333
+_C.PREPROC.MAX_SIZE = 1616
 # mean and std in RGB order.
 # Un-scaled version: [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 _C.PREPROC.PIXEL_MEAN = [123.675, 116.28, 103.53]
