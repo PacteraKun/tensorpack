@@ -771,7 +771,7 @@ class EvalCallback(Callback):
         self.df = get_eval_dataflow()
 
     def _before_train(self):
-        EVAL_TIMES = 2880  # eval 5 times during training
+        EVAL_TIMES = 5  # eval 5 times during training
         interval = self.trainer.max_epoch // (EVAL_TIMES + 1)
         self.epochs_to_eval = set([interval * k for k in range(1, EVAL_TIMES + 1)])
         self.epochs_to_eval.add(self.trainer.max_epoch)
@@ -806,7 +806,7 @@ class EvalCallback_cascade(Callback):
         self.df = get_eval_dataflow()
 
     def _before_train(self):
-        EVAL_TIMES = 180,000  # eval 5 times during training
+        EVAL_TIMES = 2880  # eval 5 times during training
         interval = self.trainer.max_epoch // (EVAL_TIMES + 1)
         self.epochs_to_eval = set([interval * k for k in range(1, EVAL_TIMES + 1)])
         self.epochs_to_eval.add(self.trainer.max_epoch)
