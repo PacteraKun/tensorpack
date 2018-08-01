@@ -880,11 +880,11 @@ if __name__ == '__main__':
             visualize(MODEL, args.load)
         else:
             if args.stage == 1:
-                output_names=MODEL.get_inference_tensor_names_cascade()[1]
+                output_name=MODEL.get_inference_tensor_names_cascade()[1]
             elif args.stage == 2:
-                output_names=MODEL.get_inference_tensor_names_cascade()[2]
+                output_name=MODEL.get_inference_tensor_names_cascade()[2]
             elif args.stage == 3:
-                output_names=MODEL.get_inference_tensor_names_cascade()[3]
+                output_name=MODEL.get_inference_tensor_names_cascade()[3]
 
             pred = OfflinePredictor(PredictConfig(
                 model=MODEL,
@@ -892,7 +892,7 @@ if __name__ == '__main__':
                 #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
                 #output_names=MODEL.get_inference_tensor_names()[1])
-                output_names=output_names)
+                output_names=output_name)
                 )
             if args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
