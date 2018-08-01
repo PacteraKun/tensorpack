@@ -174,6 +174,13 @@ _C.TEST.RESULT_SCORE_THRESH = 0.05
 _C.TEST.RESULT_SCORE_THRESH_VIS = 0.3   # only visualize confident results
 _C.TEST.RESULTS_PER_IM = 100
 
+# Multi Scale Testing
+_C.TEST.BBOX_AUG_ENABLE = True
+# SCALES: (200, 300, 400, 500, 600, 700, 800)
+_C.TEST.BBOX_AUG_SCALES = (400, 800)
+_C.TEST.BBOX_AUG_MAX_SIZE = 2120
+_C.TEST.BBOX_AUG_COORD_HEUR = 'UNION'
+
 
 def finalize_configs(is_training):
     """
