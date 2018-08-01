@@ -240,7 +240,7 @@ class OfflinePredictor(OnlinePredictor):
                 input_tensors, output_tensors, config.return_input, sess)
 
 
-class OfflinePredictor_cascade(OnlinePredictor):
+class OfflinePredictor_cascade(OnlinePredictor_cascade):
     """ A predictor built from a given config.
         A single-tower model will be built without any prefix. """
 
