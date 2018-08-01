@@ -131,7 +131,7 @@ class DetectionModel(ModelDesc):
             tf.summary.image('viz', fg_sampled_patches, max_outputs=30)
 
         encoded_boxes = encode_bbox_target(
-            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
+            gt_boxes_per_fg, fg_rcnn_boxes) * tf.constant(bbox_reg_weights, dtype=tf.float32)
         fastrcnn_label_loss, fastrcnn_box_loss = fastrcnn_losses_cascade(
             rcnn_labels, rcnn_label_logits,
             encoded_boxes,
@@ -201,7 +201,7 @@ class DetectionModel(ModelDesc):
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors)
+            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors)
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
 
         # indices: Nx2. Each index into (#proposal, #category)
@@ -235,7 +235,7 @@ class DetectionModel(ModelDesc):
         anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, cfg.DATA.NUM_CATEGORY, 1])   # #proposal x #Cat x 4
         decoded_boxes = decode_bbox_target(
             rcnn_box_logits /
-            tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32), anchors) # #proposal x #Cat x 4
+            tf.constant(bbox_reg_weights, dtype=tf.float32), anchors) # #proposal x #Cat x 4
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes'+prefix)
 
         assert decoded_boxes.shape[1] == cfg.DATA.NUM_CATEGORY
@@ -878,7 +878,7 @@ if __name__ == '__main__':
         if args.visualize:
             visualize(MODEL, args.load)
         else:
-            pred = OfflinePredictor(PredictConfig(
+            pred = OfflinePredictor_cascade(PredictConfig_cascade(
                 model=MODEL,
                 session_init=get_model_loader(args.load),
                 #input_names=MODEL.get_inference_tensor_names()[0],
