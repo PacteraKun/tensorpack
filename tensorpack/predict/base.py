@@ -14,7 +14,7 @@ from ..utils.argtools import log_once
 from ..utils.utils import execute_only_once
 
 __all__ = ['PredictorBase', 'AsyncPredictorBase',
-           'OnlinePredictor', 'OfflinePredictor',
+           'OnlinePredictor', 'OfflinePredictor', 'OfflinePredictor_cascade',
            ]
 
 
@@ -176,3 +176,31 @@ class OfflinePredictor(OnlinePredictor):
             config.session_init._run_init(sess)
             super(OfflinePredictor, self).__init__(
                 input_tensors, output_tensors, config.return_input, sess)
+
+
+class OfflinePredictor_cascade(OnlinePredictor):
+    """ A predictor built from a given config.
+        A single-tower model will be built without any prefix. """
+
+    def __init__(self, config):
+        """
+        Args:
+            config (PredictConfig): the config to use.
+        """
+        self.graph = config._maybe_create_graph()
+        with self.graph.as_default():
+            input = PlaceholderInput()
+            input.setup(config.inputs_desc)
+            with PredictTowerContext(''):
+                config.tower_func(*input.get_input_tensors())
+
+            input_tensors = get_tensors_by_names(config.input_names)
+            output_tensors_1st = get_tensors_by_names(config.output_names_1st)
+            output_tensors_2nd = get_tensors_by_names(config.output_names_2nd)
+            output_tensors_3rd = get_tensors_by_names(config.output_names_3rd)
+
+            config.session_init._setup_graph()
+            sess = config.session_creator.create_session()
+            config.session_init._run_init(sess)
+            super(OfflinePredictor_cascade, self).__init__(
+                input_tensors, output_tensors_1st, output_tensors_2nd, output_tensors_3rd, config.return_input, sess)
