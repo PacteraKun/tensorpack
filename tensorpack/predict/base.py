@@ -151,6 +151,68 @@ class OnlinePredictor(PredictorBase):
         else:
             return self._do_call_old(dp)
 
+class OnlinePredictor_cascade(PredictorBase):
+    """ A predictor which directly use an existing session and given tensors.
+    """
+
+    ACCEPT_OPTIONS = False
+
+    def __init__(self, input_tensors, output_tensors_1st, output_tensors_2nd, output_tensors_3rd,
+                 return_input=False, sess=None):
+        """
+        Args:
+            input_tensors (list): list of names.
+            output_tensors (list): list of names.
+            return_input (bool): same as :attr:`PredictorBase.return_input`.
+            sess (tf.Session): the session this predictor runs in. If None,
+                will use the default session at the first call.
+        """
+        self.return_input = return_input
+        self.input_tensors = input_tensors
+        self.output_tensors_1st = output_tensors_1st
+        self.output_tensors_2nd = output_tensors_2nd
+        self.output_tensors_3rd = output_tensors_3rd
+        self.sess = sess
+        self._use_callable = get_tf_version_number() >= 1.2
+
+        if self._use_callable:
+            if sess is not None:
+                self._callable = sess.make_callable(
+                    fetches=[output_tensors_1st, output_tensors_2nd, output_tensors_3rd],
+                    feed_list=input_tensors,
+                    accept_options=self.ACCEPT_OPTIONS)
+            else:
+                self._callable = None
+        else:
+            log_once(
+                "TF>=1.2 is recommended for better performance of predictor!", 'warn')
+
+    def _do_call_old(self, dp):
+        feed = dict(zip(self.input_tensors, dp))
+        output = self.sess.run(self.output_tensors, feed_dict=feed)
+        return output
+
+    def _do_call_new(self, dp):
+        if self._callable is None:
+            self._callable = self.sess.make_callable(
+                fetches=[self.output_tensors_1st, self.output_tensors_2nd, self.output_tensors_3rd],
+                feed_list=self.input_tensors,
+                accept_options=self.ACCEPT_OPTIONS)
+        # run_metadata = tf.RunMetadata()
+        # options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        ret = self._callable(*dp)
+        return ret
+
+    def _do_call(self, dp):
+        assert len(dp) == len(self.input_tensors), \
+            "{} != {}".format(len(dp), len(self.input_tensors))
+        if self.sess is None:
+            self.sess = tf.get_default_session()
+
+        if self._use_callable:
+            return self._do_call_new(dp)
+        else:
+            return self._do_call_old(dp)
 
 class OfflinePredictor(OnlinePredictor):
     """ A predictor built from a given config.
