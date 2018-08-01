@@ -857,6 +857,7 @@ if __name__ == '__main__':
                                           "This argument is the path to the input image file")
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
+    parser.add_argument('--stage', help="Specify which stage output of cascade rcnn", default=3)
 
     if get_tf_version_number() < 1.6:
         # https://github.com/tensorflow/tensorflow/issues/14657
@@ -878,15 +879,20 @@ if __name__ == '__main__':
         if args.visualize:
             visualize(MODEL, args.load)
         else:
-            pred = OfflinePredictor_cascade(PredictConfig_cascade(
+            if args.stage == 1:
+                output_names=MODEL.get_inference_tensor_names_cascade()[1]
+            elif args.stage == 2:
+                output_names=MODEL.get_inference_tensor_names_cascade()[2]
+            elif args.stage == 3:
+                output_names=MODEL.get_inference_tensor_names_cascade()[3]
+
+            pred = OfflinePredictor(PredictConfig(
                 model=MODEL,
                 session_init=get_model_loader(args.load),
                 #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
                 #output_names=MODEL.get_inference_tensor_names()[1])
-                output_names_1st=MODEL.get_inference_tensor_names_cascade()[1],                
-                output_names_2nd=MODEL.get_inference_tensor_names_cascade()[2],
-                output_names_3rd=MODEL.get_inference_tensor_names_cascade()[3])
+                output_names=output_names)
                 )
             if args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
