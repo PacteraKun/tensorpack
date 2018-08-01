@@ -7,6 +7,7 @@ from collections import namedtuple
 import numpy as np
 import cv2
 
+from tensorpack import *
 from tensorpack.utils.utils import get_tqdm_kwargs
 
 from pycocotools.coco import COCO
@@ -133,17 +134,21 @@ def detect_one_image_scale(img, model_func):
 
     # Apply NMS
 
+    logger.info("detect_one_image_scale...")
+    logger.info(boxes_c)
+    logger.info(scores_c)
+
 
     if masks:
         # has mask
         full_masks = [fill_full_mask(box, mask, orig_shape)
-                      for box, mask in zip(boxes, masks[0])]
+                      for box, mask in zip(boxes_c, masks_c[0])]
         masks = full_masks
     else:
         # fill with none
-        masks = [None] * len(boxes)
+        masks = [None] * len(boxes_c)
 
-    results = [DetectionResult(*args) for args in zip(boxes, probs, labels, masks)]
+    results = [DetectionResult(*args) for args in zip(boxes_c, scores_c, lables_c, masks)]
     return results
 
 
