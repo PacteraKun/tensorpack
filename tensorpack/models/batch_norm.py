@@ -11,7 +11,7 @@ import six
 from ..utils import logger
 from ..utils.argtools import get_data_format
 from ..tfutils.tower import get_current_tower_context
-from ..tfutils.common import get_tf_version_number
+from ..tfutils.common import get_tf_version_tuple
 from ..tfutils.collection import backup_collection, restore_collection
 from .common import layer_register, VariableHolder
 from .tflayer import convert_to_tflayer_args, rename_get_variable
@@ -155,9 +155,9 @@ def BatchNorm(inputs, axis=None, training=None, momentum=0.9, epsilon=1e-5,
     if training is None:
         training = ctx.is_training
     training = bool(training)
-    TF_version = get_tf_version_number()
+    TF_version = get_tf_version_tuple()
     if not training and ctx.is_training:
-        assert TF_version >= 1.4, \
+        assert TF_version >= (1, 4), \
             "Fine tuning a BatchNorm model with fixed statistics is only " \
             "supported after https://github.com/tensorflow/tensorflow/pull/12580 "
         if ctx.is_main_training_tower:  # only warn in first tower
@@ -178,7 +178,7 @@ def BatchNorm(inputs, axis=None, training=None, momentum=0.9, epsilon=1e-5,
                 gamma_initializer=gamma_initializer,
                 fused=(ndims == 4 and axis in [1, 3]),
                 _reuse=tf.get_variable_scope().reuse)
-            if TF_version >= 1.5:
+            if TF_version >= (1, 5):
                 tf_args['virtual_batch_size'] = virtual_batch_size
             else:
                 assert virtual_batch_size is None, "Feature not supported in this version of TF!"
@@ -220,9 +220,9 @@ def BatchNorm(inputs, axis=None, training=None, momentum=0.9, epsilon=1e-5,
         batch_mean_square = tf.reduce_mean(tf.square(inputs), axis=red_axis)
 
         if sync_statistics == 'nccl':
-            if six.PY3 and TF_version <= 1.9 and ctx.is_main_training_tower:
-                logger.warn("A TensorFlow bug will cause cross-GPU BatchNorm to fail. "
-                            "Apply this patch: https://github.com/tensorflow/tensorflow/pull/20360")
+            if six.PY3 and TF_version <= (1, 9) and ctx.is_main_training_tower:
+                logger.warn("A bug in TensorFlow<=1.9 will cause cross-GPU BatchNorm to fail. "
+                            "Upgrade or apply this patch manually: https://github.com/tensorflow/tensorflow/pull/20360")
 
             from tensorflow.contrib.nccl.ops import gen_nccl_ops
             shared_name = re.sub('tower[0-9]+/', '', tf.get_variable_scope().name)
@@ -242,9 +242,15 @@ def BatchNorm(inputs, axis=None, training=None, momentum=0.9, epsilon=1e-5,
                     shared_name=shared_name + '_NCCL_mean_square') * (1.0 / num_dev)
         elif sync_statistics == 'horovod':
             # Require https://github.com/uber/horovod/pull/331
+            import horovod
+            hvd_version = tuple(map(int, horovod.__version__.split('.')))
+            assert hvd_version >= (0, 13, 6), "sync_statistics needs horovod>=0.13.6 !"
             import horovod.tensorflow as hvd
-            batch_mean = hvd.allreduce(batch_mean, average=True)
-            batch_mean_square = hvd.allreduce(batch_mean_square, average=True)
+            if hvd.size() == 1:
+                logger.warn("BatchNorm(sync_statistics='horovod') is used with only one process!")
+            else:
+                batch_mean = hvd.allreduce(batch_mean, average=True)
+                batch_mean_square = hvd.allreduce(batch_mean_square, average=True)
         batch_var = batch_mean_square - tf.square(batch_mean)
         batch_mean_vec = batch_mean
         batch_var_vec = batch_var
