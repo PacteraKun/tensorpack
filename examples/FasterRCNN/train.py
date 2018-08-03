@@ -45,7 +45,7 @@ from model_box import (
     crop_and_resize, roi_align, RPNAnchors)
 
 from data import (
-    get_train_dataflow, get_eval_dataflow,
+    get_train_dataflow, get_eval_dataflow, get_train_dataflow_ignore,
     get_all_anchors, get_all_anchors_fpn)
 from viz import (
     draw_annotation, draw_proposal_recall,
@@ -858,6 +858,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
     parser.add_argument('--stage', help="Specify which stage output of cascade rcnn", default=3)
+    parser.add_argument('--ignore', help="Ignore file for training")
 
     #if get_tf_version_tuple() < (1, 6):
         # https://github.com/tensorflow/tensorflow/issues/14657
@@ -945,14 +946,24 @@ if __name__ == '__main__':
         else:
             session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
-        traincfg = TrainConfig(
-            model=MODEL,
-            data=QueueInput(get_train_dataflow()),
-            callbacks=callbacks,
-            steps_per_epoch=stepnum,
-            max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
-            session_init=session_init,
-        )
+        if args.ignore:
+            traincfg = TrainConfig(
+                model=MODEL,
+                data=QueueInput(get_train_dataflow_ignore(args.ignore)),
+                callbacks=callbacks,
+                steps_per_epoch=stepnum,
+                max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
+                session_init=session_init,
+            )
+        else:
+            traincfg = TrainConfig(
+                model=MODEL,
+                data=QueueInput(get_train_dataflow()),
+                callbacks=callbacks,
+                steps_per_epoch=stepnum,
+                max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
+                session_init=session_init,
+            )
         if is_horovod:
             # horovod mode has the best speed for this model
             trainer = HorovodTrainer(average=False)
