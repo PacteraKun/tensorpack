@@ -1,13 +1,16 @@
 import os, sys, argparse
 
-filePath = sys.argv[1]
+parser = argparse.ArgumentParser()
+input = parser.add_argument('--input', help='input log file path', type=str)
+output = parser.add_argument('--output', help='output txt file to store mAp results', type=str)
 
-with open(filePath) as f:
+args = parser.parse_args()
+with open(args.input) as f:
     log = f.readlines()
 count = 0
 i = 0
 
-file = open('evaluation_coco_mAP_same_threshold_cascade.txt', 'w')
+file = open(args.output, 'w')
 while i < len(log):
     if '[EvalCallback] Will evaluate at epoch' in log[i]:
         print(log[i])
@@ -17,6 +20,7 @@ while i < len(log):
             print(log[j])
             file.write(log[j] + '\n')        
     i += 1
+file.close()
 '''for i, line in enumerate(log):
     if 'Accumulating evaluation results' in line:
         count += 1
