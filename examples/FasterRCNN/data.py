@@ -642,7 +642,6 @@ def get_train_dataflow_ignore(ignore_path):
         try:
             if cfg.MODE_FPN:
                 if image_name in ignore:
-                    print(image_name)
                     multilevel_anchor_inputs = get_multilevel_rpn_anchor_input_ignore(
                         im, boxes, is_crowd, ignore[image_name])
                 else:

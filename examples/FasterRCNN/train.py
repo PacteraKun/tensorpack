@@ -857,7 +857,7 @@ if __name__ == '__main__':
                                           "This argument is the path to the input image file")
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
-    parser.add_argument('--stage', help="Specify which stage output of cascade rcnn", default=3)
+    parser.add_argument('--stage', help="Specify which stage output of cascade rcnn when testing", default=3)
     parser.add_argument('--ignore', help="Ignore file for training")
 
     #if get_tf_version_tuple() < (1, 6):
