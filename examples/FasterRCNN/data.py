@@ -240,29 +240,31 @@ def get_anchor_labels_ignore(anchors, gt_boxes, crowd_boxes, ignore_boxes):
         box[:, 2] += box[:, 0]
         box[:, 3] += box[:, 1]
         return box
+
     if len(ignore_boxes) > 0:
         ignores_xyxy = to_xyxy(ignore_boxes)
-    else:
-        ignores_xyxy = []
+        box_left = anchors[:, 0].reshape(1, len(anchors))
+        box_top = anchors[:, 1].reshape(1, len(anchors))
+        box_right = anchors[:, 2].reshape(1, len(anchors))
+        box_bottom = anchors[:, 3].reshape(1, len(anchors))
+        box_area = (box_right - box_left) * (box_bottom - box_top)
 
-    def area(box):
-        xmin, ymin, xmax, ymax = box
-        return (xmax- xmin)*(ymax -ymin)
-    for i in range(len(anchors)):
-        for ignore in ignores_xyxy:
-            top_left = [
-                max(anchors[i][0], ignore[0]),
-                max(anchors[i][1], ignore[1])
-            ]
-            bottom_right = [
-                min(anchors[i][2], ignore[2]),
-                min(anchors[i][3], ignore[3])
-            ]
-            if np.all(top_left<bottom_right):
-                inter_area = area([*top_left, *bottom_right])
-                anchor_area = area(anchors[i])
-                if inter_area/anchor_area > 0.5:
-                    anchor_labels[i] = -1
+        ignore_left = ignores_xyxy[:, 0].reshape(len(ignores_xyxy), 1)
+        ignore_top = ignores_xyxy[:, 1].reshape(len(ignores_xyxy), 1)
+        ignore_right = ignores_xyxy[:, 2].reshape(len(ignores_xyxy), 1)
+        ignore_bottom = ignores_xyxy[:, 3].reshape(len(ignores_xyxy), 1)
+
+        left = np.maximum(box_left, ignore_left)
+        top = np.maximum(box_top, ignore_top)
+        right = np.minimum(box_right, ignore_right)
+        bottom = np.minimum(box_bottom, ignore_bottom)
+        overlap = np.logical_and(left<right, top<bottom)
+        overlap_area = (right - left) * (bottom - top)
+        overlap_ratio = overlap_area/box_area
+        overlap_pos = np.logical_and(overlap_ratio > 0.5,overlap)
+        ignored = np.any(overlap_pos, axis=0)
+
+        anchor_labels[ignored == True] = -1
 
     # Subsample fg labels: ignore some fg if fg is too many
     target_num_fg = int(cfg.RPN.BATCH_PER_IM * cfg.RPN.FG_RATIO)
@@ -720,8 +722,11 @@ def get_eval_dataflow():
 if __name__ == '__main__':
     import os
     from tensorpack.dataflow import PrintData
-    cfg.DATA.BASEDIR = os.path.expanduser('/media/workspace/bgong/data/WIDER_Pedestrian_Challenge/coco')
-    ds = get_train_dataflow_ignore('/media/workspace/bgong/data/WIDER_Pedestrian_Challenge/data/pedestrian_ignore_part_train.txt')
+    cfg.DATA.BASEDIR = os.path.expanduser(
+        '/media/workspace/bgong/data/WIDER_Pedestrian_Challenge/coco')
+    ds = get_train_dataflow_ignore(
+        '/media/workspace/bgong/data/WIDER_Pedestrian_Challenge/data/pedestrian_ignore_part_train.txt'
+    )
     # ds = PrintData(ds, 100)
     TestDataSpeed(ds, 50000).start()
     ds.reset_state()
