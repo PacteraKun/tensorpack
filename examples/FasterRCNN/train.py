@@ -947,9 +947,11 @@ if __name__ == '__main__':
             session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
         if args.ignore:
+            input = QueueInput(get_train_dataflow_ignore(args.ignore))
+            input = StagingInput(input, nr_stage=1)
             traincfg = TrainConfig(
                 model=MODEL,
-                data=QueueInput(get_train_dataflow_ignore(args.ignore)),
+                data=input,
                 callbacks=callbacks,
                 steps_per_epoch=stepnum,
                 max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
