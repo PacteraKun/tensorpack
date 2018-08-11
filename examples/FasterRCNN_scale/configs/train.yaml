@@ -1,0 +1,79 @@
+# mode flags ---------------------
+TRAINER: replicated  # options: 'horovod', 'replicated'
+MODE_MASK: True        # FasterRCNN or MaskRCNN
+MODE_FPN : True
+
+DATA:
+  BASEDIR : /media/workspace/COCO/DIR
+  TRAIN : ['train2014', 'valminusminival2014']   # i.e., trainval35k
+  VAL : 'minival2014'   # For now, only support evaluation on single dataset
+  NUM_CLASS : 81    # 80 + 1 categories.
+  CLASS_NAMES : []  # NUM_CLASS to be populated later by data loader. The first is BG.
+
+BACKBONE:
+  WEIGHTS : /media/workspace/Model/ImageNet-R50-AlignPadding.npz   # /path/to/weights.npz
+  RESNET_NUM_BLOCK : [3, 4, 6, 3]     # for resnet50 [3, 4, 23, 3] for resnet101
+  FREEZE_AFFINE : False   # do not train affine parameters inside norm layers
+  NORM : FreezeBN  # options: FreezeBN, SyncBN, GN
+  FREEZE_AT : 2  # options: 0, 2
+  TF_PAD_MODE : False
+  STRIDE_1X1 : False  # True for MSRA models
+
+TRAIN:
+  NUM_GPUS : 4         # by default, will be set from code
+  WEIGHT_DECAY : 1e-4
+  BASE_LR : 1e-2
+  WARMUP : 1000    # in steps
+  STEPS_PER_EPOCH : 500
+  LR_SCHEDULE : [240000, 320000, 360000]    # "2x" schedule in detectron
+
+PREPROC:
+  SHORT_EDGE_SIZE : 800
+  MAX_SIZE : 1333
+  PIXEL_MEAN : [123.675, 116.28, 103.53]
+  PIXEL_STD : [58.395, 57.12, 57.375]
+
+RPN:
+  ANCHOR_STRIDE : 16
+  ANCHOR_SIZES : (32, 64, 128, 256, 512)   # sqrtarea of the anchor box
+  ANCHOR_RATIOS : (0.5, 1., 2.)
+  POSITIVE_ANCHOR_THRESH : 0.7
+  NEGATIVE_ANCHOR_THRESH : 0.3
+  FG_RATIO : 0.5  # fg ratio among selected RPN anchors
+  BATCH_PER_IM : 256  # total (across FPN levels) number of anchors that are marked valid
+  MIN_SIZE : 0
+  PROPOSAL_NMS_THRESH : 0.7
+  CROWD_OVERLAP_THRESH : 0.7  # boxes overlapping crowd will be ignored.
+  HEAD_DIM : 1024      # used in C4 only
+  TRAIN_PRE_NMS_TOPK : 12000
+  TRAIN_POST_NMS_TOPK : 2000
+  TEST_PRE_NMS_TOPK : 6000
+  TEST_POST_NMS_TOPK : 1000   # if you encounter OOM in inference, set this to a smaller number
+  TRAIN_PER_LEVEL_NMS_TOPK : 2000
+  TEST_PER_LEVEL_NMS_TOPK : 1000
+
+FRCNN:
+  BATCH_PER_IM : 512
+  BBOX_REG_WEIGHTS : [10., 10., 5., 5.]  # Better but non-standard setting: [20, 20, 10, 10]
+  FG_THRESH : 0.5
+  FG_RATIO : 0.25  # fg ratio in a ROI batch
+
+FPN: 
+  ANCHOR_STRIDES : (4, 8, 16, 32, 64)  # strides for each FPN level. Must be the same length as ANCHOR_SIZES
+  PROPOSAL_MODE : 'Level'  # 'Level', 'Joint'
+  NUM_CHANNEL : 256
+  NORM : None  # 'None', 'GN'
+  FRCNN_HEAD_FUNC : fastrcnn_2fc_head
+  FRCNN_CONV_HEAD_DIM : 256
+  FRCNN_FC_HEAD_DIM : 1024
+  MRCNN_HEAD_FUNC : maskrcnn_up4conv_head
+
+MRCNN:
+  HEAD_DIM : 256
+
+TEST:
+  WEIGHTS : /media/workspace/Model/COCO-R50C4-MaskRCNN-Standard.npz
+  FRCNN_NMS_THRESH : 0.5
+  RESULT_SCORE_THRESH : 0.05
+  RESULT_SCORE_THRESH_VIS : 0.3   # only visualize confident results
+  RESULTS_PER_IM : 100
