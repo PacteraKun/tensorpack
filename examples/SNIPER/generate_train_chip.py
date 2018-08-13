@@ -107,4 +107,6 @@ def get_sniper_train_dataflow():
         return rets
 
     
-    return ds
+    return img
+
+    get_sniper_train_dataflow()
