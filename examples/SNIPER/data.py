@@ -555,7 +555,6 @@ def get_sniper_train_dataflow():
 
     ds = DataFromList(imgs, shuffle=True)
     aug = imgaug.AugmentorList([
-        CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
         imgaug.Flip(horiz=True)
     ])
 
@@ -610,6 +609,13 @@ def get_sniper_train_dataflow():
                 minbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][1]
                 maxbox = sys.maxsize if maxbox == -1 else maxbox
                 minbox = 0 if minbox == -1 else minbox
+                for j in range(len(boxes[i])):
+                    w = boxes[i][j][2] - boxes[i][j][0]
+                    h = boxes[i][j][3] - boxes[i][j][1]
+                    if w >= maxbox or h >= maxbox or (w < minbox
+                                                      and h < minbox):
+                        gt_invalid.append(boxes[i][j])
+                        is_crowd[i][j] = 1
                 for box in boxes[i]:
                     w = box[2] - box[0]
                     h = box[3] - box[1]
