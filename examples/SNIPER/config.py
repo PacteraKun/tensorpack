@@ -60,7 +60,7 @@ _C.MODE_MASK = True        # FasterRCNN or MaskRCNN
 _C.MODE_FPN = False
 
 # dataset -----------------------
-_C.DATA.BASEDIR = '/path/to/your/COCO/DIR'
+_C.DATA.BASEDIR = '/media/workspace/bgong/data/PedestrianDetection/WIDER_Pedestrian_Challenge/coco'
 _C.DATA.TRAIN = ['train2014']   # i.e., trainval35k
 _C.DATA.VAL = 'val2014'   # For now, only support evaluation on single dataset
 _C.DATA.NUM_CATEGORY = 2    # 80 categories.
@@ -162,7 +162,7 @@ _C.SNIPER.CHIP_STRIDE = 32
 _C.SNIPER.IMAGE_CHIP_ITR = 5
 # number of random gen chip iters
 # due to data flow structure, we need to present image chip before training
-_C.SNIPER.PRN_PRE = '../../../rpn_proposals.pkl' 
+_C.SNIPER.PRN_PRE = '/media/workspace/jiaqicai/weights/rpn_proposals.pkl' 
 _C.SNIPER.NEG_CHIP_NUM_PER_IMAGE = 2
 _C.SNIPER.NEG_CHIP_RPN_THRESHOLD = 10
 

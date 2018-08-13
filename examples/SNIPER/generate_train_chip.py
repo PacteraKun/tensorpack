@@ -1,13 +1,27 @@
+import cv2
+import numpy as np
+import copy
+import itertools
+import os
 import pandas
+import re
+import sys
+
 from coco import COCODetection
 from config import finalize_configs, config as cfg
 from utils.generate_chips import Im2Chip
+from tensorpack.utils.argtools import memoized, log_once
 from tensorpack.dataflow import (imgaug, TestDataSpeed, PrefetchDataZMQ,
                                  MultiProcessMapDataZMQ, MultiThreadMapData,
                                  MapDataComponent, DataFromList, RNGDataFlow,
                                  DataFlow, ProxyDataFlow)
+from tensorpack.utils import logger
 from utils.generate_anchors import generate_anchors
 from utils.np_box_ops import area as np_area
+
+class MalformedData(BaseException):
+    pass
+
 
 OUTPUT_FILE = 'train_chip_annotations.txt'
 out = open(OUTPUT_FILE, 'w')
@@ -22,9 +36,7 @@ def get_sniper_train_dataflow():
     num = len(imgs)
     imgs = list(
         filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, imgs))
-    logger.info(
-        "Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".
-        format(num - len(imgs), len(imgs)))
+    print(imgs[0])
 
     proposal_pickle = pandas.read_pickle(cfg.SNIPER.PRN_PRE)
 
@@ -48,11 +60,6 @@ def get_sniper_train_dataflow():
         # assume floatbox as input
         assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
 
-        # augmentation:
-        im, params = aug.augment_return_params(im)
-        points = box_to_point8(boxes)
-        points = aug.augment_coords(points, params)
-        boxes = point8_to_box(points)
         assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
         chip_generator = Im2Chip(
             im,
@@ -64,33 +71,10 @@ def get_sniper_train_dataflow():
             is_crowd=is_crowd,
             chip_size=cfg.SNIPER.CHIP_SIZE,
             chip_stride=cfg.SNIPER.CHIP_STRIDE)
-        im, boxes, klass, scale_indices, is_crowd = chip_generator.genChipMultiScale(
-        )
+        im, boxes, klass, scale_indices, is_crowd = chip_generator.genChipMultiScale()
         rets = []
         for i in range(len(im)):
             try:
-                if len(boxes[i]) == 0:
-                    continue
-                # anchor_labels, anchor_boxes
-                gt_invalid = []
-                maxbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][0]
-                minbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][1]
-                maxbox = sys.maxsize if maxbox == -1 else maxbox
-                minbox = 0 if minbox == -1 else minbox
-                for box in boxes[i]:
-                    w = box[2] - box[0]
-                    h = box[3] - box[1]
-                    if w >= maxbox or h >= maxbox or (w < minbox
-                                                      and h < minbox):
-                        gt_invalid.append(box)
-                anchor_inputs = get_sniper_rpn_anchor_input(
-                    im[i], boxes[i], is_crowd[i], gt_invalid)
-                assert len(anchor_inputs) == 2
-
-                boxes[i] = boxes[i][is_crowd[i] ==
-                                    0]  # skip crowd boxes in training target
-                klass[i] = klass[i][is_crowd[i] == 0]
-
                 if not len(boxes[i]):
                     raise MalformedData("No valid gt_boxes!")
             except MalformedData as e:
@@ -102,11 +86,12 @@ def get_sniper_train_dataflow():
 
             # ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]
             #                                        ] + [scale_indices[i]*len(boxes[i])]
-            ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]]
+            ret = [im[i]] + [boxes[i], klass[i]]
             rets.append(ret)
         return rets
-
+    for img in imgs:
+        preprocess(img)
     
-    return img
+    return imgs
 
 get_sniper_train_dataflow()

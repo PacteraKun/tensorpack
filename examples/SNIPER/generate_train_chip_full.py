@@ -433,6 +433,7 @@ def get_train_dataflow():
     ds = DataFromList(imgs, shuffle=True)
 
     aug = imgaug.AugmentorList([
+        CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
         imgaug.Flip(horiz=True)
     ])
 
@@ -554,10 +555,10 @@ def get_sniper_train_dataflow():
         format(num - len(imgs), len(imgs)))
 
     ds = DataFromList(imgs, shuffle=True)
-    aug = imgaug.AugmentorList([
-        CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-        imgaug.Flip(horiz=True)
-    ])
+    # aug = imgaug.AugmentorList([
+    #     CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+    #     imgaug.Flip(horiz=True)
+    # ])
 
     assert os.path.isfile(cfg.SNIPER.PRN_PRE)
     proposal_pickle = pandas.read_pickle(cfg.SNIPER.PRN_PRE)
@@ -645,7 +646,7 @@ def get_sniper_train_dataflow():
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
-    ds = SniperDataFlow(ds)
+    # ds = SniperDataFlow(ds)
     return ds
 
 
@@ -689,3 +690,4 @@ if __name__ == '__main__':
     ds.reset_state()
     for k in ds.get_data():
         pass
+
