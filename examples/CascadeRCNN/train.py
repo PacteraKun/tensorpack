@@ -53,7 +53,7 @@ from viz import (
 from eval import (
     eval_coco, detect_one_image, print_evaluation_scores, DetectionResult)
 from config import finalize_configs, config as cfg
-
+from utils.box_ops import box_voting
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
@@ -215,6 +215,13 @@ class DetectionModel(ModelDesc):
         final_probs = tf.identity(final_probs, 'final_probs'+prefix)
         final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name='final_boxes'+prefix)
         final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels'+prefix)
+
+        #TODO add box voting after NMS
+        if cfg.TEST.BOX_VOTING.ENABLED:
+            final_boxes, final_probs = box_voting(final_boxes, final_probs, decoded_boxes, label_probs, cfg.TEST.BOX_VOTING.THRESH)
+            final_probs = tf.identity(final_probs, 'final_probs_voting'+prefix)
+            final_boxes = tf.identity(final_boxes, 'final_boxes_voting'+prefix)
+
         return final_boxes, final_labels
 
     def decode_boxes(self, image_shape2d, rcnn_boxes, rcnn_box_logits, stage_num):
@@ -278,8 +285,13 @@ class DetectionModel(ModelDesc):
         out_2nd = ['final_boxes_2nd', 'final_probs_2nd', 'final_labels_2nd']
         out_3rd = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
         out_4th = ['final_boxes_4th', 'final_probs_4th', 'final_labels_4th']
-        if cfg.MODE_MASK:
-            out.append('final_masks')
+
+        if cfg.TEST.BOX_VOTING.ENABLED:
+            out_1st = ['ffinal_boxes_voting_1st', 'final_probs_voting_1st', 'final_labels_1st']
+            out_2nd = ['final_boxes_voting_2nd', 'final_probs_voting_2nd', 'final_labels_2nd']
+            out_3rd = ['final_boxes_voting_3rd', 'final_probs_voting_3rd', 'final_labels_3rd']
+            out_4th = ['final_boxes_voting_4th', 'final_probs_voting_4th', 'final_labels_4th']
+            
         return ['image'], out_1st, out_2nd, out_3rd, out_4th
 
 

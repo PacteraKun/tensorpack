@@ -64,3 +64,52 @@ def pairwise_iou(boxlist1, boxlist2):
     return tf.where(
         tf.equal(intersections, 0.0),
         tf.zeros_like(intersections), tf.truediv(intersections, unions))
+
+def box_voting(selected_boxes, selected_prob, pool_boxes, prob, iou_thresh=0.5):
+    """Performs box voting as described in S. Gidaris and N. Komodakis, ICCV 2015.
+    
+    Performs box voting as described in 'Object detection via a multi-region &
+    semantic segmentation-aware CNN model', Gidaris and Komodakis, ICCV 2015. For
+    each box 'B' in selected_boxes, we find the set 'S' of boxes in pool_boxes
+    with iou overlap >= iou_thresh. The location of B is set to the weighted
+    average location of boxes in S (scores are used for weighting). And the score
+    of B is set to the average score of boxes in S.
+    
+    Args:
+        selected_boxes: These boxes are usually selected from pool_boxes using non max suppression.
+        selected_prob: These prob are usually selected from prob using non max suppression.
+        pool_boxes: a set of (possibly redundant) boxes before NMS.
+        prob: a set of (possibly redudant) prob before NMS
+        iou_thresh: (float scalar) iou threshold for matching boxes in selected_boxes and pool_boxes.
+    
+    Returns:
+    BoxList containing averaged locations and scores for each box in selected_boxes.
+    
+    Raises:
+    ValueError: if
+        a) if iou_thresh is not in [0, 1].
+    """
+    if not 0.0 <= iou_thresh <= 1.0:
+        raise ValueError('iou_thresh must be between 0 and 1')
+    
+    iou_ = pairwise_iou(selected_boxes, pool_boxes)
+    match_indicator = tf.to_float(tf.greater(iou_, iou_thresh))
+    num_matches = tf.reduce_sum(match_indicator, 1)
+    # TODO(kbanoop): Handle the case where some boxes in selected_boxes do not
+    # # match to any boxes in pool_boxes. For such boxes without any matches, we
+    # # should return the original boxes without voting.
+    match_assert = tf.Assert(
+        tf.reduce_all(tf.greater(num_matches, 0)),
+        ['Each box in selected_boxes must match with at least one box in pool_boxes.'])
+    
+    scores = tf.expand_dims(prob, 1)
+    scores_assert = tf.Assert(
+        tf.reduce_all(tf.greater_equal(scores, 0)),
+        ['Scores must be non negative.'])
+    
+    with tf.control_dependencies([scores_assert, match_assert]):
+        sum_scores = tf.matmul(match_indicator, scores)
+    averaged_scores = tf.reshape(sum_scores, [-1]) / num_matches
+    box_locations = tf.matmul(match_indicator, pool_boxes * scores) / sum_scores
+    
+    return box_locations, averaged_scores
