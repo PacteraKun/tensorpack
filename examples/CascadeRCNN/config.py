@@ -178,6 +178,8 @@ _C.TEST.RESULT_SCORE_THRESH = 0.05
 _C.TEST.RESULT_SCORE_THRESH_VIS = 0.3   # only visualize confident results
 _C.TEST.RESULTS_PER_IM = 100
 
+_C.TEST.BOX_VOTING.ENABLED = True
+_C.TEST.BOX_VOTING.THRESH = 0.8
 
 def finalize_configs(is_training):
     """

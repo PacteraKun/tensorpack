@@ -291,7 +291,7 @@ class DetectionModel(ModelDesc):
             out_2nd = ['final_boxes_voting_2nd', 'final_probs_voting_2nd', 'final_labels_2nd']
             out_3rd = ['final_boxes_voting_3rd', 'final_probs_voting_3rd', 'final_labels_3rd']
             out_4th = ['final_boxes_voting_4th', 'final_probs_voting_4th', 'final_labels_4th']
-            
+
         return ['image'], out_1st, out_2nd, out_3rd, out_4th
 
 
@@ -954,9 +954,7 @@ if __name__ == '__main__':
             pred = OfflinePredictor(PredictConfig(
                 model=MODEL,
                 session_init=get_model_loader(args.load),
-                #input_names=MODEL.get_inference_tensor_names()[0],
                 input_names=MODEL.get_inference_tensor_names_cascade()[0],
-                #output_names=MODEL.get_inference_tensor_names()[1])
                 output_names=output_name)
                 )
             if args.evaluate:
