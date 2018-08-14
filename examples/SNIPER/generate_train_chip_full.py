@@ -313,7 +313,7 @@ def get_sniper_rpn_anchor_input(im, boxes, is_crowd, gt_invalid):
     boxes = boxes.copy()
     for i in range(len(boxes)):
         for gt in gt_invalid:
-            if iou(boxes[i], gt) >0.3:
+            if iou(boxes[i], gt) > 0.3:
                 is_crowd[i] == 1
     all_anchors = np.copy(get_all_anchors())
     # fHxfWxAx4 -> (-1, 4)
@@ -532,6 +532,7 @@ def get_sniper_train_dataflow():
 
     OUTPUT_FILE = 'train_512_annotation.txt'
     OUTPUT_IMG_DIR = 'out'
+    out_file = open(OUTPUT_FILE, 'w')
 
     class SniperDataFlow(ProxyDataFlow):
         def __init__(self, ds):
@@ -614,7 +615,18 @@ def get_sniper_train_dataflow():
 
             # ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]
             #                                        ] + [scale_indices[i]*len(boxes[i])]
-            ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]]
+            new_name = '%s/%s_%d' % (OUTPUT_IMG_DIR, img_name, i)
+            cv2.imwrite(new_name)
+
+            ret = [im[i]] + [boxes[i], klass[i]]
+            for j in range(len(klass[i])):
+                if j == 0:
+                    out_file.write(new_name)
+                out_file.write(' %d %f %f %f %f' %
+                               (klass[i][j], boxes[i][j][0], boxes[i][j][1],
+                                boxes[i][j][2], boxes[i][j][3]))
+                if j == len(klass[i]) -1:
+                    out_file.write('\n')
             rets.append(ret)
         return rets
 
@@ -668,4 +680,3 @@ if __name__ == '__main__':
     ds.reset_state()
     for k in ds.get_data():
         pass
-
