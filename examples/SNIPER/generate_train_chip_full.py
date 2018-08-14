@@ -533,7 +533,6 @@ def get_sniper_train_dataflow():
     OUTPUT_FILE = 'train_512_annotation.txt'
     OUTPUT_IMG_DIR = 'out'
     out_file = open(OUTPUT_FILE, 'w')
-    out_file.write('test')
 
     class SniperDataFlow(ProxyDataFlow):
         def __init__(self, ds):
@@ -613,7 +612,7 @@ def get_sniper_train_dataflow():
                         fname, str(e)), 'warn')
                 ret = None
                 continue
-
+            print(1)
             # ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]
             #                                        ] + [scale_indices[i]*len(boxes[i])]
             new_name = '%s/%s_%d' % (OUTPUT_IMG_DIR, img_name, i)
