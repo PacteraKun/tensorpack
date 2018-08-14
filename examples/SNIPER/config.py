@@ -162,7 +162,7 @@ _C.SNIPER.CHIP_STRIDE = 32
 _C.SNIPER.IMAGE_CHIP_ITR = 5
 # number of random gen chip iters
 # due to data flow structure, we need to present image chip before training
-_C.SNIPER.PRN_PRE = '/media/workspace/jiaqicai/weights/rpn_proposals.pkl' 
+_C.SNIPER.PRN_PRE = '/media/workspace/jiaqicai/rpn_proposals.pkl' 
 _C.SNIPER.NEG_CHIP_NUM_PER_IMAGE = 2
 _C.SNIPER.NEG_CHIP_RPN_THRESHOLD = 10
 
