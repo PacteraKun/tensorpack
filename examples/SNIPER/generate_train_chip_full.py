@@ -530,6 +530,9 @@ def get_sniper_train_dataflow():
     If MODE_MASK, gt_masks: (N, h, w)
     """
 
+    OUTPUT_FILE = 'train_512_annotation.txt'
+    OUTPUT_IMG_DIR = 'out'
+
     class SniperDataFlow(ProxyDataFlow):
         def __init__(self, ds):
             super(SniperDataFlow, self).__init__(ds)
@@ -554,7 +557,7 @@ def get_sniper_train_dataflow():
         "Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".
         format(num - len(imgs), len(imgs)))
 
-    ds = DataFromList(imgs, shuffle=True)
+    ds = DataFromList(imgs, shuffle=False)
     # aug = imgaug.AugmentorList([
     #     CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
     #     imgaug.Flip(horiz=True)
@@ -600,26 +603,6 @@ def get_sniper_train_dataflow():
             try:
                 if len(boxes[i]) == 0:
                     continue
-                # anchor_labels, anchor_boxes
-                gt_invalid = []
-                maxbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][0]
-                minbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][1]
-                maxbox = sys.maxsize if maxbox == -1 else maxbox
-                minbox = 0 if minbox == -1 else minbox
-                for box in boxes[i]:
-                    w = box[2] - box[0]
-                    h = box[3] - box[1]
-                    if w >= maxbox or h >= maxbox or (w < minbox
-                                                      and h < minbox):
-                        gt_invalid.append(box)
-                anchor_inputs = get_sniper_rpn_anchor_input(
-                    im[i], boxes[i], is_crowd[i], gt_invalid)
-                assert len(anchor_inputs) == 2
-
-                boxes[i] = boxes[i][is_crowd[i] ==
-                                    0]  # skip crowd boxes in training target
-                klass[i] = klass[i][is_crowd[i] == 0]
-
                 if not len(boxes[i]):
                     raise MalformedData("No valid gt_boxes!")
             except MalformedData as e:
@@ -681,7 +664,7 @@ if __name__ == '__main__':
     # ds = get_train_dataflow()
     ds = get_sniper_train_dataflow()
     # ds = PrintData(ds, 100)
-    TestDataSpeed(ds, 50000).start()
+    TestDataSpeed(ds, 11500).start()
     ds.reset_state()
     for k in ds.get_data():
         pass
