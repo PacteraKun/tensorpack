@@ -51,7 +51,7 @@ from viz import (
     draw_annotation, draw_proposal_recall,
     draw_predictions, draw_final_outputs)
 from eval import (
-    eval_coco, detect_one_image_scale, print_evaluation_scores, DetectionResult)
+    eval_coco, detect_one_image, print_evaluation_scores, DetectionResult)
 from config import finalize_configs, config as cfg
 
 
@@ -449,7 +449,7 @@ def visualize(model, model_path, nr_visualize=100, output_dir='output'):
 def offline_evaluate(pred_func, output_file):
     df = get_eval_dataflow()
     all_results = eval_coco(
-        df, lambda img: detect_one_image_scale(img, pred_func))
+        df, lambda img: detect_one_image(img, pred_func))
     with open(output_file, 'w') as f:
         json.dump(all_results, f)
     print_evaluation_scores(output_file)
@@ -457,7 +457,7 @@ def offline_evaluate(pred_func, output_file):
 
 def predict(pred_func, input_file):
     img = cv2.imread(input_file, cv2.IMREAD_COLOR)
-    results = detect_one_image_scale(img, pred_func)
+    results = detect_one_image(img, pred_func)
     final = draw_final_outputs(img, results)
     viz = np.concatenate((img, final), axis=1)
     tpviz.interactive_imshow(viz)
@@ -482,7 +482,7 @@ class EvalCallback(Callback):
 
     def _build_coco_predictor(self, idx):
         graph_func = self.trainer.get_predictor(self._in_names, self._out_names, device=idx)
-        return lambda img: detect_one_image_scale(img, graph_func)
+        return lambda img: detect_one_image(img, graph_func)
 
     def _before_train(self):
         num_eval = cfg.TRAIN.NUM_EVALS
