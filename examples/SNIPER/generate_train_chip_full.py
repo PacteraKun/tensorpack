@@ -620,6 +620,7 @@ def get_sniper_train_dataflow():
 
             ret = [im[i]] + [boxes[i], klass[i]]
             print(boxes[i])
+            print(klass[i])
             for j in range(len(klass[i])):
                 if j == 0:
                     out_file.write(new_name)
