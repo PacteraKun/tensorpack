@@ -945,11 +945,17 @@ if __name__ == '__main__':
         if args.visualize:
             visualize(MODEL, args.load)
         else:
-            output_name=MODEL.get_inference_tensor_names_cascade()[3]
+            output_name = MODEL.get_inference_tensor_names_cascade()[3]
             if args.stage == 1:
                 output_name=MODEL.get_inference_tensor_names_cascade()[1]
             elif args.stage == 2:
                 output_name=MODEL.get_inference_tensor_names_cascade()[2]
+            elif args.stage == 3:
+                output_name=MODEL.get_inference_tensor_names_cascade()[3]
+            elif args.stage == 4:
+                output_name=MODEL.get_inference_tensor_names_cascade()[4]
+            else:
+                raise ValueError('args.stage should not be larger than 4.')
 
             pred = OfflinePredictor(PredictConfig(
                 model=MODEL,
