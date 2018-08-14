@@ -4,8 +4,6 @@
 import tensorflow as tf
 from tensorpack.tfutils.scope_utils import under_name_scope
 
-import cython_nms
-
 """
 This file is modified from
 https://github.com/tensorflow/models/blob/master/object_detection/core/box_list_ops.py
@@ -66,11 +64,3 @@ def pairwise_iou(boxlist1, boxlist2):
     return tf.where(
         tf.equal(intersections, 0.0),
         tf.zeros_like(intersections), tf.truediv(intersections, unions))
-
-
-@under_name_scope()
-def nms(dets, thresh):
-    """Apply classic DPM-style greedy NMS."""
-    if dets.shape[0] == 0:
-        return []
-    return cython_nms.nms(dets, thresh)
