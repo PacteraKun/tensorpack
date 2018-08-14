@@ -60,7 +60,7 @@ _C.MODE_MASK = True        # FasterRCNN or MaskRCNN
 _C.MODE_FPN = False
 
 # dataset -----------------------
-_C.DATA.BASEDIR = '/media/workspace/bgong/data/PedestrianDetection/WIDER_Pedestrian_Challenge/coco'
+_C.DATA.BASEDIR = '/media/workspace/jiaqicai/coco'
 _C.DATA.TRAIN = ['train2014']   # i.e., trainval35k
 _C.DATA.VAL = 'val2014'   # For now, only support evaluation on single dataset
 _C.DATA.NUM_CATEGORY = 2    # 80 categories.
@@ -68,8 +68,8 @@ _C.DATA.CLASS_NAMES = []  # NUM_CLASS (NUM_CATEGORY+1) strings, to be populated 
 
 # basemodel ----------------------
 _C.BACKBONE.WEIGHTS = ''   # /path/to/weights.npz
-_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
-# RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
+# _C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
+_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
 _C.BACKBONE.FREEZE_AFFINE = False   # do not train affine parameters inside norm layers
 _C.BACKBONE.NORM = 'FreezeBN'  # options: FreezeBN, SyncBN, GN
 _C.BACKBONE.FREEZE_AT = 2  # options: 0, 1, 2
@@ -151,11 +151,11 @@ _C.FPN.MRCNN_HEAD_FUNC = 'maskrcnn_up4conv_head'
 # choices: maskrcnn_up4conv_{,gn_}head
 
 # SNIPER ------------------------
-_C.SNIPER.SCALES = [3.0, 1.667, 512.0] 
+_C.SNIPER.SCALES = [3.0, 2.0, 1.0, 512.0] 
 # Training scales
 # The last scale (or the only scale) should be the desired max resolution in pixels
 # Other scales should be scaling coefficients
-_C.SNIPER.VALID_RANGES = [(-1, 80), (32, 150), (120, -1)]
+_C.SNIPER.VALID_RANGES = [(-1,100), (80, 160), (128, 320), (300, -1)]
 # Valid ranges in each scale
 _C.SNIPER.CHIP_SIZE = 512
 _C.SNIPER.CHIP_STRIDE = 32
