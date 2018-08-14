@@ -533,6 +533,7 @@ def get_sniper_train_dataflow():
     OUTPUT_FILE = 'train_512_annotation.txt'
     OUTPUT_IMG_DIR = 'out'
     out_file = open(OUTPUT_FILE, 'w')
+    out_file.write('test')
 
     class SniperDataFlow(ProxyDataFlow):
         def __init__(self, ds):
@@ -619,8 +620,6 @@ def get_sniper_train_dataflow():
             cv2.imwrite(new_name, im[i])
 
             ret = [im[i]] + [boxes[i], klass[i]]
-            print(boxes[i])
-            print(klass[i])
             for j in range(len(klass[i])):
                 if j == 0:
                     out_file.write(new_name)
