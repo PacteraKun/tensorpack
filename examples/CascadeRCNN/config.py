@@ -56,8 +56,8 @@ _C = config     # short alias to avoid coding
 
 # mode flags ---------------------
 _C.TRAINER = 'replicated'  # options: 'horovod', 'replicated'
-_C.MODE_MASK = True        # FasterRCNN or MaskRCNN
-_C.MODE_FPN = False
+_C.MODE_MASK = False        # FasterRCNN or MaskRCNN
+_C.MODE_FPN = True
 
 # dataset -----------------------
 _C.DATA.BASEDIR = '/path/to/your/COCO/DIR'
