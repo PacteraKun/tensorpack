@@ -599,6 +599,7 @@ def get_sniper_train_dataflow():
             chip_stride=cfg.SNIPER.CHIP_STRIDE)
         im, boxes, klass, scale_indices, is_crowd = chip_generator.genChipMultiScale(
         )
+        print(boxes)
         rets = []
         for i in range(len(im)):
             try:
