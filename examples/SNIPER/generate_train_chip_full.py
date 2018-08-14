@@ -582,11 +582,6 @@ def get_sniper_train_dataflow():
         # assume floatbox as input
         assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
 
-        # augmentation:
-        im, params = aug.augment_return_params(im)
-        points = box_to_point8(boxes)
-        points = aug.augment_coords(points, params)
-        boxes = point8_to_box(points)
         assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
         chip_generator = Im2Chip(
             im,
