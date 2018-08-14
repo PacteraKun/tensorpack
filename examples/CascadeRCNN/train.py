@@ -218,7 +218,7 @@ class DetectionModel(ModelDesc):
 
         #TODO add box voting after NMS
         if cfg.TEST.BOX_VOTING.ENABLED:
-            print(final_boxes.shape(), decoded_boxes.shape())
+            print(tf.shape(final_boxes), tf.shape(decoded_boxes))
             final_boxes, final_probs = box_voting(final_boxes, final_probs, decoded_boxes, label_probs, cfg.TEST.BOX_VOTING.THRESH)
             final_probs = tf.identity(final_probs, 'final_probs_voting'+prefix)
             final_boxes = tf.identity(final_boxes, 'final_boxes_voting'+prefix)
