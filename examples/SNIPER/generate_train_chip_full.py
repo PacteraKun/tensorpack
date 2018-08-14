@@ -616,7 +616,7 @@ def get_sniper_train_dataflow():
             # ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]
             #                                        ] + [scale_indices[i]*len(boxes[i])]
             new_name = '%s/%s_%d' % (OUTPUT_IMG_DIR, img_name, i)
-            cv2.imwrite(new_name)
+            cv2.imwrite(new_name, im[i])
 
             ret = [im[i]] + [boxes[i], klass[i]]
             for j in range(len(klass[i])):
