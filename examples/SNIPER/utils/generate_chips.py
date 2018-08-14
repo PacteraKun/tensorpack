@@ -1,10 +1,15 @@
+#!/usr/bin/env python3
+"""
+generate_chips.py: prepare chip for sniper
+can run independently but need to provide factory function for data
+
+"""
+__author__ = "Jiaqi Cai"
+__email__ = "jiaqi.cai22@pactera.com"
+
 import cv2
 import numpy as np
 import json
-
-# from config import finalize_configs, config as cfg
-
-# from config import config as cfg
 
 
 class Im2Chip(object):
@@ -18,6 +23,10 @@ class Im2Chip(object):
                  is_crowd,
                  chip_size=512,
                  chip_stride=32):
+        """
+        take origin image and ground truth, pre trained RPN proposal,
+        target scale and chip configure as input
+        """
         assert len(scale_list) == len(
             box_range_list), "scale number does not match valid range"
         self.image = image
@@ -33,6 +42,16 @@ class Im2Chip(object):
         # self.chip_candidates = self.__genChipCandidate(self.image.shape)
 
     def genChipMultiScale(self):
+        """
+        combine selected chips on different scales
+
+        return:
+        chips_all : all selected chips
+        chips_gt_all : ground truth on selected chips
+        chips_gt_label_all : ground truth class label 
+        scale_index_all : scale index(in config file) of chip
+        is_crowd_all : iscrowd label of ground truth
+        """
         h, w, channel = self.image.shape
         scale_list = self.scale_list.copy()
         scale_list[-1] /= max(w, h)
@@ -63,6 +82,14 @@ class Im2Chip(object):
         return chips_all, chips_gt_all, chips_gt_label_all, scale_index_all, is_crowd_all
 
     def __genChipCandidate(self, shape):
+        """
+        generate chips on different certain shape
+        input:
+        shape : shape of image
+        
+        return:
+        generated chips
+        """
         s = self.chip_stride
         # cv2 have revised order of shape
         h = shape[0]
@@ -91,6 +118,11 @@ class Im2Chip(object):
         return chips
 
     def __im2ChipSize(self, image):
+        """
+        rescale image to chip size
+        input : image to rescale
+        return : rescaled image
+        """
         im_max_size = max(self.image.shape[:2])
         return cv2.resize(
             image, (0, 0),
@@ -99,6 +131,9 @@ class Im2Chip(object):
             interpolation=cv2.INTER_LINEAR)
 
     def __contain_single_box(self, chip, box):
+        """
+        test if box in certain chip
+        """
         # print(chip, box)
         if chip[0] <= box[0] and chip[1] <= box[1] and chip[2] >= box[2] and chip[3] >= box[3]:
             return True
@@ -106,6 +141,16 @@ class Im2Chip(object):
             return False
 
     def __overlap(self, chip_candidates, gt_list):
+        """
+        calculate if ground truth in chip
+        input :
+        gt_list : a list of ground truths
+        chip_candidates : a list of chips
+        output : 
+        candidate_contains : ground truth index list in chips
+        candidate_contains_size : number of ground truths in chips
+        gt2candidates : revised list from ground truth to chip
+        """
         gt2candidates = {}
         candidate_contains_size = []
         candidate_contains = []
@@ -124,6 +169,18 @@ class Im2Chip(object):
         return candidate_contains, candidate_contains_size, gt2candidates
 
     def __genChip(self, scale, s_range):
+        """
+        generate chip on certain scale
+        input :
+        scale : scale of chip
+        s_range : valid ground truth range
+
+        return :
+        chips : selected chips
+        chips_gts : ground truth on selected chips
+        chips_gts_label : ground truth label on selected chips
+        is_crowd : ground truth iscrowd label
+        """
         image_scaled = cv2.resize(self.image, (0, 0), fx=scale, fy=scale)
         chip_candidates_scaled = self.__genChipCandidate(image_scaled.shape)
         box_min = 0 if s_range[0] == -1 else s_range[0]
@@ -152,10 +209,20 @@ class Im2Chip(object):
         # chips_shape = chip_candidates_scaled[chips_neg + chips_pos].astype(int)
         chips, chips_gts, chips_gts_label, is_crowd = self.__genChipsGt(
             chip_candidates_scaled[chips_pos + chips_neg], image_scaled, scale)
-        
+
         return chips, chips_gts, chips_gts_label, is_crowd
 
     def __genPosChips(self, chip_candidates, gt_filtered):
+        """
+        select positive chips
+        
+        input : 
+        chip_candidates : chips
+        gt_filtered : valid ground truths
+
+        return: 
+        chips : selected chips 
+        """
         gt_boxes = gt_filtered
         candidate_contains, candidate_contains_size, gt2candidates = self.__overlap(
             chip_candidates, gt_boxes)
@@ -178,6 +245,18 @@ class Im2Chip(object):
 
     def __genNegChips(self, chip_candidates, chips_pos, rp_filtered, rpn_count,
                       n):
+        """
+        select negative chips
+        
+        input : 
+        chip_candidates : chips
+        chips_pos : selected positive chip
+        rp_filtered : filtered proposal from pretrained RPN
+        rpn_count : least number of proposals in selected neg chips
+        n : number of negative chips selected
+
+        return : selected negative chips 
+        """
         candidate_contains, candidate_contains_size, rp2candidates = self.__overlap(
             chip_candidates, rp_filtered)
         checked_rp = set()
@@ -195,6 +274,19 @@ class Im2Chip(object):
         return chip_neg[0:n]
 
     def __genChipsGt(self, chips_shape, image, scale):
+        """
+        generate new cropped ground truth on selected chips
+        input :
+        chips_shape : selected chips pos
+        image : scaled image
+        scale : scale of chip
+
+        output :
+        chips : selected chip data
+        chip_gts : cropped ground truth on selected chip
+        chip_gt_labels : ground truth label
+        is_crowd_all : ground truth iscrowd label
+        """
         gt_boxes = self.gt_list * scale
         chips = [np.array(image[s[1]:s[3], s[0]:s[2]]) for s in chips_shape]
         chip_gts = []
@@ -222,6 +314,12 @@ class Im2Chip(object):
     # each box is a N*4 array/tuple
     # order is [x1, y1, x2, y2]
     def __intersection(self, A, B):
+        """
+        count intersection area of two boxes
+        input :
+        A, B : two x1, y1, x2, y2 boxes
+        return : overlap box
+        """
         top_left = np.array([max(A[0], B[0]), max(A[1], B[1])])
         bottom_right = np.array([min(A[2], B[2]), min(A[3], B[3])])
         if np.all(top_left < bottom_right):
@@ -241,7 +339,7 @@ if __name__ == '__main__':
     # cv2.imshow('img', img)
     # cv2.waitKey(0)
     # img_resized = cv2.resize(img, (512, 513))
-    box_range_list = [[0, 100000],[0, 100000],[0, 100000]]
+    box_range_list = [[0, 100000], [0, 100000], [0, 100000]]
     train_boxes = np.array(
         [[362, 414, 99, 205], [441, 391, 94, 227], [369, 294, 54, 127],
          [831, 257, 49, 136], [1107, 268, 62, 148], [1165, 266, 49, 149], [
@@ -251,6 +349,6 @@ if __name__ == '__main__':
     train_boxes[:, 2:4] += train_boxes[:, 0:2]
     train_labels = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2])
     is_crowd = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    cutter = Im2Chip(img, train_boxes, train_labels, [], [1,2,512.0],
+    cutter = Im2Chip(img, train_boxes, train_labels, [], [1, 2, 512.0],
                      box_range_list, is_crowd, 512, 32)
     cutter.genChipMultiScale()
