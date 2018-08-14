@@ -68,8 +68,8 @@ _C.DATA.CLASS_NAMES = []  # NUM_CLASS (NUM_CATEGORY+1) strings, to be populated 
 
 # basemodel ----------------------
 _C.BACKBONE.WEIGHTS = ''   # /path/to/weights.npz
-# _C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
-_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
+_C.BACKBONE.RESNET_NUM_BLOCK = [3, 4, 6, 3]     # for resnet50
+# RESNET_NUM_BLOCK = [3, 4, 23, 3]    # for resnet101
 _C.BACKBONE.FREEZE_AFFINE = False   # do not train affine parameters inside norm layers
 _C.BACKBONE.NORM = 'FreezeBN'  # options: FreezeBN, SyncBN, GN
 _C.BACKBONE.FREEZE_AT = 2  # options: 0, 1, 2
@@ -84,20 +84,21 @@ _C.BACKBONE.TF_PAD_MODE = False
 _C.BACKBONE.STRIDE_1X1 = False  # True for MSRA models
 
 # schedule -----------------------
-# The schedule and learning rate here is defined for a total batch size of 8.
-# If not running with 8 GPUs, they will be adjusted automatically in code.
 _C.TRAIN.NUM_GPUS = None         # by default, will be set from code
 _C.TRAIN.WEIGHT_DECAY = 1e-4
-_C.TRAIN.BASE_LR = 1e-2
-_C.TRAIN.WARMUP = 1000    # in steps
+_C.TRAIN.BASE_LR = 1e-2  # defined for a total batch size of 8. Otherwise it will be adjusted automatically
+_C.TRAIN.WARMUP = 1000   # in terms of iterations. This is not affected by #GPUs
 _C.TRAIN.STEPS_PER_EPOCH = 500
+
+# Schedule means "steps" only when total batch size is 8.
+# Otherwise the actual steps to decrease learning rate are computed from the schedule.
 # LR_SCHEDULE = [120000, 160000, 180000]  # "1x" schedule in detectron
-_C.TRAIN.LR_SCHEDULE = [240000, 320000, 360000]    # "2x" schedule in detectron
+_C.TRAIN.LR_SCHEDULE = [120000, 160000, 180000]    # "2x" schedule in detectron
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600, 1024
-_C.PREPROC.SHORT_EDGE_SIZE = 800
-_C.PREPROC.MAX_SIZE = 1333
+_C.PREPROC.SHORT_EDGE_SIZE = 512
+_C.PREPROC.MAX_SIZE = 512
 # mean and std in RGB order.
 # Un-scaled version: [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 _C.PREPROC.PIXEL_MEAN = [123.675, 116.28, 103.53]
@@ -105,8 +106,8 @@ _C.PREPROC.PIXEL_STD = [58.395, 57.12, 57.375]
 
 # anchors -------------------------
 _C.RPN.ANCHOR_STRIDE = 16
-_C.RPN.ANCHOR_SIZES = (32, 64, 128, 256, 512)   # sqrtarea of the anchor box
-_C.RPN.ANCHOR_RATIOS = (0.5, 1., 2.)
+_C.RPN.ANCHOR_SIZES = (32, 64, 128, 256)   # sqrtarea of the anchor box
+_C.RPN.ANCHOR_RATIOS = (0.5, 1., 0.25)
 _C.RPN.POSITIVE_ANCHOR_THRESH = 0.7
 _C.RPN.NEGATIVE_ANCHOR_THRESH = 0.3
 
@@ -136,7 +137,7 @@ _C.FRCNN.FG_THRESH = 0.5
 _C.FRCNN.FG_RATIO = 0.25  # fg ratio in a ROI batch
 
 # FPN -------------------------
-_C.FPN.ANCHOR_STRIDES = (4, 8, 16, 32, 64)  # strides for each FPN level. Must be the same length as ANCHOR_SIZES
+_C.FPN.ANCHOR_STRIDES = (8, 16, 32, 64)  # strides for each FPN level. Must be the same length as ANCHOR_SIZES
 _C.FPN.PROPOSAL_MODE = 'Level'  # 'Level', 'Joint'
 _C.FPN.NUM_CHANNEL = 256
 _C.FPN.NORM = 'None'  # 'None', 'GN'
@@ -149,21 +150,31 @@ _C.FPN.FRCNN_FC_HEAD_DIM = 1024
 _C.FPN.MRCNN_HEAD_FUNC = 'maskrcnn_up4conv_head'
 # choices: maskrcnn_up4conv_{,gn_}head
 
+# SNIPER ------------------------
+_C.SNIPER.SCALES = [3.0, 1.667, 512.0] 
+# Training scales
+# The last scale (or the only scale) should be the desired max resolution in pixels
+# Other scales should be scaling coefficients
+_C.SNIPER.VALID_RANGES = [(-1, 80), (32, 150), (120, -1)]
+# Valid ranges in each scale
+_C.SNIPER.CHIP_SIZE = 512
+_C.SNIPER.CHIP_STRIDE = 32
+_C.SNIPER.IMAGE_CHIP_ITR = 5
+# number of random gen chip iters
+# due to data flow structure, we need to present image chip before training
+_C.SNIPER.PRN_PRE = '../../../rpn_proposals.pkl' 
+_C.SNIPER.NEG_CHIP_NUM_PER_IMAGE = 2
+_C.SNIPER.NEG_CHIP_RPN_THRESHOLD = 10
+
+
 # Mask-RCNN
 _C.MRCNN.HEAD_DIM = 256
 
 # testing -----------------------
 _C.TEST.FRCNN_NMS_THRESH = 0.5
-_C.TEST.RESULT_SCORE_THRESH = 1e-4
+_C.TEST.RESULT_SCORE_THRESH = 0.05
 _C.TEST.RESULT_SCORE_THRESH_VIS = 0.3   # only visualize confident results
 _C.TEST.RESULTS_PER_IM = 100
-
-# Multi Scale Testing
-_C.TEST.BBOX_AUG_ENABLE = True
-# SCALES: (200, 300, 400, 500, 600, 700, 800)
-_C.TEST.BBOX_AUG_SCALES = (400, 800)
-_C.TEST.BBOX_AUG_MAX_SIZE = 2120
-_C.TEST.BBOX_AUG_COORD_HEUR = 'UNION'
 
 
 def finalize_configs(is_training):
@@ -176,7 +187,7 @@ def finalize_configs(is_training):
     assert _C.BACKBONE.NORM in ['FreezeBN', 'SyncBN', 'GN'], _C.BACKBONE.NORM
     if _C.BACKBONE.NORM != 'FreezeBN':
         assert not _C.BACKBONE.FREEZE_AFFINE
-    assert _C.BACKBONE.FREEZE_AT in [0, 1, 2]
+    assert _C.BACKBONE.FREEZE_AT in [0, 2]
 
     _C.RPN.NUM_ANCHOR = len(_C.RPN.ANCHOR_SIZES) * len(_C.RPN.ANCHOR_RATIOS)
     assert len(_C.FPN.ANCHOR_STRIDES) == len(_C.RPN.ANCHOR_SIZES)
