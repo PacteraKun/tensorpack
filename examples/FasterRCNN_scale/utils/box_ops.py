@@ -4,7 +4,7 @@
 import tensorflow as tf
 from tensorpack.tfutils.scope_utils import under_name_scope
 
-import detectron.utils.cython_nms as cython_nms
+import cython_nms
 
 """
 This file is modified from
