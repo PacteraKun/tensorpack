@@ -93,14 +93,12 @@ def box_voting(selected_boxes, selected_prob, pool_boxes, prob, iou_thresh=0.5):
         raise ValueError('iou_thresh must be between 0 and 1')
     
     iou_ = pairwise_iou(selected_boxes, pool_boxes)
-    print("iou_: ", iou_)
     match_indicator = tf.to_float(tf.greater(iou_, iou_thresh))
     num_matches = tf.reduce_sum(match_indicator, 1)
-    print("num_matches: ", num_matches)
     # TODO(kbanoop): Handle the case where some boxes in selected_boxes do not
     # # match to any boxes in pool_boxes. For such boxes without any matches, we
     # # should return the original boxes without voting.
-    
+
     def posi_fn():
         match_assert = tf.Assert(
             tf.reduce_all(tf.greater(num_matches, 0)),

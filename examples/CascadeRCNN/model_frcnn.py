@@ -425,6 +425,8 @@ def fastrcnn_predictions_box_voting(boxes, probs):
         selected_prob = tf.gather(prob, selected_indice)
 
         refined_box, refined_prob = box_voting(selected_box, selected_prob, box, prob, cfg.TEST.BOX_VOTING.THRESH)
+        print(refined_box.shape)
+        print(refined_prob.shape)
         # sort available in TF>1.4.0
         # sorted_selection = tf.contrib.framework.sort(selection, direction='ASCENDING')
         
