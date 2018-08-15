@@ -100,6 +100,8 @@ def box_voting(selected_boxes, selected_prob, pool_boxes, prob, iou_thresh=0.5):
     # TODO(kbanoop): Handle the case where some boxes in selected_boxes do not
     # # match to any boxes in pool_boxes. For such boxes without any matches, we
     # # should return the original boxes without voting.
+    if not tf.reduce_all(tf.greater(num_matches, 0)):
+        return selected_boxes, selected_prob
     match_assert = tf.Assert(
         tf.reduce_all(tf.greater(num_matches, 0)),
         ['Each box in selected_boxes must match with at least one box in pool_boxes.'])
