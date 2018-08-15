@@ -430,7 +430,7 @@ def fastrcnn_predictions_box_voting(boxes, probs):
         
         return refined_box, refined_prob, selected_indice
 
-    refined_boxes, refined_probs, refined_indices = tf.map_fn(f, (probs, boxes), dtype=tf.bool,
+    refined_boxes, refined_probs, refined_indices = tf.map_fn(f, (probs, boxes),
                       parallel_iterations=10)     # refined_boxes: #cat x N; refined_indices: (cat_id, box_id)
 
 
