@@ -100,20 +100,28 @@ def box_voting(selected_boxes, selected_prob, pool_boxes, prob, iou_thresh=0.5):
     # TODO(kbanoop): Handle the case where some boxes in selected_boxes do not
     # # match to any boxes in pool_boxes. For such boxes without any matches, we
     # # should return the original boxes without voting.
-    if not tf.reduce_all(tf.greater(num_matches, 0)):
+    
+    def posi_fn():
+        match_assert = tf.Assert(
+            tf.reduce_all(tf.greater(num_matches, 0)),
+            ['Each box in selected_boxes must match with at least one box in pool_boxes.'])
+        
+        scores = tf.expand_dims(prob, 1)
+        scores_assert = tf.Assert(
+            tf.reduce_all(tf.greater_equal(scores, 0)),
+            ['Scores must be non negative.'])
+        
+        with tf.control_dependencies([scores_assert, match_assert]):
+            sum_scores = tf.matmul(match_indicator, scores)
+        averaged_scores = tf.reshape(sum_scores, [-1]) / num_matches
+        box_locations = tf.matmul(match_indicator, pool_boxes * scores) / sum_scores
+        
+        return box_locations, averaged_scores
+
+    def neg_fn():
         return selected_boxes, selected_prob
-    match_assert = tf.Assert(
-        tf.reduce_all(tf.greater(num_matches, 0)),
-        ['Each box in selected_boxes must match with at least one box in pool_boxes.'])
+
+    result = tf.cond(tf.reduce_all(tf.greater(num_matches, 0)), posi_fn, neg_fn)
+
+    return result
     
-    scores = tf.expand_dims(prob, 1)
-    scores_assert = tf.Assert(
-        tf.reduce_all(tf.greater_equal(scores, 0)),
-        ['Scores must be non negative.'])
-    
-    with tf.control_dependencies([scores_assert, match_assert]):
-        sum_scores = tf.matmul(match_indicator, scores)
-    averaged_scores = tf.reshape(sum_scores, [-1]) / num_matches
-    box_locations = tf.matmul(match_indicator, pool_boxes * scores) / sum_scores
-    
-    return box_locations, averaged_scores
