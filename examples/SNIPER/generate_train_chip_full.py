@@ -313,7 +313,7 @@ def get_sniper_rpn_anchor_input(im, boxes, is_crowd, gt_invalid):
     boxes = boxes.copy()
     for i in range(len(boxes)):
         for gt in gt_invalid:
-            if iou(boxes[i], gt) >0.3:
+            if iou(boxes[i], gt) > 0.3:
                 is_crowd[i] == 1
     all_anchors = np.copy(get_all_anchors())
     # fHxfWxAx4 -> (-1, 4)
@@ -433,6 +433,7 @@ def get_train_dataflow():
     ds = DataFromList(imgs, shuffle=True)
 
     aug = imgaug.AugmentorList([
+        CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
         imgaug.Flip(horiz=True)
     ])
 
@@ -529,6 +530,10 @@ def get_sniper_train_dataflow():
     If MODE_MASK, gt_masks: (N, h, w)
     """
 
+    OUTPUT_FILE = 'train_512_annotation.txt'
+    OUTPUT_IMG_DIR = 'out'
+    out_file = open(OUTPUT_FILE, 'w')
+
     class SniperDataFlow(ProxyDataFlow):
         def __init__(self, ds):
             super(SniperDataFlow, self).__init__(ds)
@@ -553,10 +558,11 @@ def get_sniper_train_dataflow():
         "Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".
         format(num - len(imgs), len(imgs)))
 
-    ds = DataFromList(imgs, shuffle=True)
-    aug = imgaug.AugmentorList([
-        imgaug.Flip(horiz=True)
-    ])
+    ds = DataFromList(imgs, shuffle=False)
+    # aug = imgaug.AugmentorList([
+    #     CustomResize(cfg.PREPROC.SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+    #     imgaug.Flip(horiz=True)
+    # ])
 
     assert os.path.isfile(cfg.SNIPER.PRN_PRE)
     proposal_pickle = pandas.read_pickle(cfg.SNIPER.PRN_PRE)
@@ -580,11 +586,6 @@ def get_sniper_train_dataflow():
         # assume floatbox as input
         assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
 
-        # augmentation:
-        im, params = aug.augment_return_params(im)
-        points = box_to_point8(boxes)
-        points = aug.augment_coords(points, params)
-        boxes = point8_to_box(points)
         assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
         chip_generator = Im2Chip(
             im,
@@ -603,26 +604,6 @@ def get_sniper_train_dataflow():
             try:
                 if len(boxes[i]) == 0:
                     continue
-                # anchor_labels, anchor_boxes
-                gt_invalid = []
-                maxbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][0]
-                minbox = cfg.SNIPER.VALID_RANGES[scale_indices[i]][1]
-                maxbox = sys.maxsize if maxbox == -1 else maxbox
-                minbox = 0 if minbox == -1 else minbox
-                for box in boxes[i]:
-                    w = box[2] - box[0]
-                    h = box[3] - box[1]
-                    if w >= maxbox or h >= maxbox or (w < minbox
-                                                      and h < minbox):
-                        gt_invalid.append(box)
-                anchor_inputs = get_sniper_rpn_anchor_input(
-                    im[i], boxes[i], is_crowd[i], gt_invalid)
-                assert len(anchor_inputs) == 2
-
-                boxes[i] = boxes[i][is_crowd[i] ==
-                                    0]  # skip crowd boxes in training target
-                klass[i] = klass[i][is_crowd[i] == 0]
-
                 if not len(boxes[i]):
                     raise MalformedData("No valid gt_boxes!")
             except MalformedData as e:
@@ -631,10 +612,20 @@ def get_sniper_train_dataflow():
                         fname, str(e)), 'warn')
                 ret = None
                 continue
-
             # ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]
             #                                        ] + [scale_indices[i]*len(boxes[i])]
-            ret = [im[i]] + list(anchor_inputs) + [boxes[i], klass[i]]
+            new_name = '%s_%d' % (img_name, i)
+            cv2.imwrite('%s/%s'%(OUTPUT_IMG_DIR,new_name), im[i])
+
+            ret = [im[i]] + [boxes[i], klass[i]]
+            for j in range(len(klass[i])):
+                if j == 0:
+                    out_file.write(new_name)
+                out_file.write(' %d %f %f %f %f' %
+                               (klass[i][j], boxes[i][j][0], boxes[i][j][1],
+                                boxes[i][j][2], boxes[i][j][3]))
+                if j == len(klass[i]) -1:
+                    out_file.write('\n')
             rets.append(ret)
         return rets
 
@@ -644,7 +635,7 @@ def get_sniper_train_dataflow():
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
-    ds = SniperDataFlow(ds)
+    # ds = SniperDataFlow(ds)
     return ds
 
 
@@ -684,7 +675,7 @@ if __name__ == '__main__':
     # ds = get_train_dataflow()
     ds = get_sniper_train_dataflow()
     # ds = PrintData(ds, 100)
-    TestDataSpeed(ds, 50000).start()
+    TestDataSpeed(ds, 11500).start()
     ds.reset_state()
     for k in ds.get_data():
         pass
