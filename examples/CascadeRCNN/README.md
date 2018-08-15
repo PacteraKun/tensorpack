@@ -39,10 +39,19 @@ COCO/DIR/
 
 On a single machine:
 ```
-./train.py --config \
+./train.py --logdir Path/to/result --config \
     MODE_MASK=True MODE_FPN=True \
     DATA.BASEDIR=/path/to/COCO/DIR \
     BACKBONE.WEIGHTS=/path/to/ImageNet-R50-Pad.npz \
+```
+
+Train with ignore file included in the training dataset. 
+```
+./train.py --logdir Path/to/result --config \
+    MODE_MASK=True MODE_FPN=True \
+    DATA.BASEDIR=/path/to/COCO/DIR \
+    BACKBONE.WEIGHTS=/path/to/ImageNet-R50-Pad.npz \
+    --ignore path/to/ignore/file
 ```
 
 To run distributed training, set `TRAINER=horovod` and refer to [HorovodTrainer docs](http://tensorpack.readthedocs.io/modules/train.html#tensorpack.train.HorovodTrainer).
@@ -64,6 +73,12 @@ Evaluate the performance of a model on COCO.
 ./train.py --evaluate output.json --load /path/to/COCO-R50C4-MaskRCNN-Standard.npz \
     --config MODE_MASK=True DATA.BASEDIR=/path/to/COCO/DIR
 ```
+Evaluate the perfornamce of a model on the specific stage of Cascade R-CNN (the default stage is set to be 3).
+```
+./train.py --evaluate output.json --load /path/to/COCO-R50C4-MaskRCNN-Standard.npz \
+    --config MODE_MASK=True DATA.BASEDIR=/path/to/COCO/DIR  --stage 3
+```
+
 Evaluation or prediction will need the same `--config` used during training.
 
 ## Results
