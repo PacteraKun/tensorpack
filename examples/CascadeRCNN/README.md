@@ -4,6 +4,7 @@ This example provides a minimal (<2k lines) and faithful implementation of the f
 + [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497)
 + [Feature Pyramid Networks for Object Detection](https://arxiv.org/abs/1612.03144)
 + [Mask R-CNN](https://arxiv.org/abs/1703.06870)
++ [Cascade R-CNN](https://arxiv.org/pdf/1712.00726.pdf)
 
 with the support of:
 + Multi-GPU / distributed training
