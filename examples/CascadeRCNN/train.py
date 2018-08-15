@@ -121,8 +121,6 @@ class DetectionModel(ModelDesc):
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
         elif stage_num == 3:
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
-        elif stage_num == 4:
-            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE4
 
         with tf.name_scope('fg_sample_patch_viz'):
             fg_sampled_patches = crop_and_resize(
@@ -188,8 +186,6 @@ class DetectionModel(ModelDesc):
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2
         elif stage_num == 3:
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
-        elif stage_num == 4:
-            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE4
 
         prefix = ''
         if stage_num == 1:
@@ -198,8 +194,6 @@ class DetectionModel(ModelDesc):
             prefix = '_2nd'
         elif stage_num == 3:
             prefix ='_3rd'
-        elif stage_num == 4:
-            prefix ='_4th'
 
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
         rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
@@ -243,9 +237,6 @@ class DetectionModel(ModelDesc):
         elif stage_num == 3:
             prefix= '3rd'
             bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3
-        elif stage_num == 4:
-            prefix= '4th'
-            bbox_reg_weights = cfg.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE4
     
         rcnn_box_logits = rcnn_box_logits[:, 1:, :]
         rcnn_box_logits.set_shape([None, cfg.DATA.NUM_CATEGORY, None])
@@ -285,9 +276,8 @@ class DetectionModel(ModelDesc):
         out_1st = ['final_boxes_1st', 'final_probs_1st', 'final_labels_1st']
         out_2nd = ['final_boxes_2nd', 'final_probs_2nd', 'final_labels_2nd']
         out_3rd = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
-        out_4th = ['final_boxes_4th', 'final_probs_4th', 'final_labels_4th']
 
-        return ['image'], out_1st, out_2nd, out_3rd, out_4th
+        return ['image'], out_1st, out_2nd, out_3rd
 
 
 class ResNetC4Model(DetectionModel):
@@ -695,36 +685,7 @@ class ResNetFPNModel(DetectionModel):
             final_boxes_3rd, final_labels_3rd = self.fastrcnn_inference_cascade(
                 image_shape2d, rcnn_boxes_3rd, fastrcnn_label_logits_3rd, fastrcnn_box_logits_3rd, 3)          
         
-        ########################### stage 4
-        proposal_boxes_4th = self.decode_boxes(image_shape2d, rcnn_boxes_3rd, fastrcnn_box_logits_3rd, 4)
         
-        if is_training:
-            rcnn_boxes_4th, rcnn_labels_4th, fg_inds_wrt_gt_4th = sample_cascade_rcnn_targets(
-                proposal_boxes_4th, gt_boxes, gt_labels, 4)
-        else:
-            rcnn_boxes_4th = proposal_boxes_4th
-        
-        roi_feature_fastrcnn_4th = multilevel_roi_align(p23456[:4], rcnn_boxes_4th, 7)
-
-        fastrcnn_head_func = getattr(model_frcnn, cfg.CASCADERCNN.HEAD_FUNC_STAGE4)
-        fastrcnn_label_logits_4th, fastrcnn_box_logits_4th = fastrcnn_head_func(
-            'cascade_rcnn_4th', roi_feature_fastrcnn_4th, cfg.DATA.NUM_CLASS)
-
-        if is_training:
-            # fastrcnn loss:
-            matched_gt_boxes_4th = tf.gather(gt_boxes, fg_inds_wrt_gt_4th)
-
-            fg_inds_wrt_sample_4th = tf.reshape(tf.where(rcnn_labels_4th > 0), [-1])   # fg inds w.r.t all samples
-            fg_sampled_boxes_4th = tf.gather(rcnn_boxes_4th, fg_inds_wrt_sample_4th)
-            fg_fastrcnn_box_logits_4th = tf.gather(fastrcnn_box_logits_4th, fg_inds_wrt_sample_4th)
-
-            fastrcnn_label_loss_4th, fastrcnn_box_loss_4th = self.fastrcnn_training_cascade(
-                image, rcnn_labels_4th, fg_sampled_boxes_4th,
-                matched_gt_boxes_4th, fastrcnn_label_logits_4th, fg_fastrcnn_box_logits_4th, 4)
-        else:
-            final_boxes_4th, final_labels_4th = self.fastrcnn_inference_cascade(
-                image_shape2d, rcnn_boxes_4th, fastrcnn_label_logits_4th, fastrcnn_box_logits_4th, 4)
-
         if is_training:
             wd_cost = regularize_cost(
                 '(?:group1|group2|group3|rpn|fpn|fastrcnn|maskrcnn|cascade_rcnn)/.*W',
@@ -734,7 +695,6 @@ class ResNetFPNModel(DetectionModel):
                                    fastrcnn_label_loss_1st, fastrcnn_box_loss_1st,
                                    fastrcnn_label_loss_2nd, fastrcnn_box_loss_2nd,
                                    fastrcnn_label_loss_3rd, fastrcnn_box_loss_3rd,
-                                   fastrcnn_label_loss_4th, fastrcnn_box_loss_4th,
                                    mrcnn_loss, wd_cost], 'total_cost')
 
             add_moving_summary(total_cost, wd_cost)
@@ -847,14 +807,13 @@ class EvalCallback(Callback):
             self._eval()
 
 class EvalCallback_cascade(Callback):
-    def __init__(self, in_names, out_names_1st, out_names_2nd, out_names_3rd, out_names_4th):
-        self._in_names, self._out_names_1st, self._out_names_2nd, self._out_names_3rd, self._out_names_4th = in_names, out_names_1st, out_names_2nd, out_names_3rd, out_names_4th
+    def __init__(self, in_names, out_names_1st, out_names_2nd, out_names_3rd):
+        self._in_names, self._out_names_1st, self._out_names_2nd, self._out_names_3rd = in_names, out_names_1st, out_names_2nd, out_names_3rd
 
     def _setup_graph(self):
         self.pred_1st = self.trainer.get_predictor(self._in_names, self._out_names_1st)
         self.pred_2nd = self.trainer.get_predictor(self._in_names, self._out_names_2nd)
         self.pred_3rd = self.trainer.get_predictor(self._in_names, self._out_names_3rd)
-        self.pred_4th = self.trainer.get_predictor(self._in_names, self._out_names_4th)
         self.df = get_eval_dataflow()
 
     def _before_train(self):
@@ -868,28 +827,22 @@ class EvalCallback_cascade(Callback):
         all_results_1st = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_1st))
         all_results_2nd = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_2nd))
         all_results_3rd = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_3rd))
-        all_results_4th = eval_coco(self.df, lambda img: detect_one_image(img, self.pred_4th))
         output_file_1st = os.path.join(
             logger.get_logger_dir(), '1st_outputs{}.json'.format(self.global_step))
         output_file_2nd = os.path.join(
             logger.get_logger_dir(), '2nd_outputs{}.json'.format(self.global_step))
         output_file_3rd = os.path.join(
             logger.get_logger_dir(), '3rd_outputs{}.json'.format(self.global_step))
-        output_file_4th = os.path.join(
-            logger.get_logger_dir(), '4th_outputs{}.json'.format(self.global_step))
         with open(output_file_1st, 'w') as f:
             json.dump(all_results_1st, f)
         with open(output_file_2nd, 'w') as f:
             json.dump(all_results_2nd, f)
         with open(output_file_3rd, 'w') as f:
             json.dump(all_results_3rd, f)
-        with open(output_file_4th, 'w') as f:
-            json.dump(all_results_4th, f)
         try:
             scores_1st = print_evaluation_scores(output_file_1st)
             scores_2nd = print_evaluation_scores(output_file_2nd)
             scores_3rd = print_evaluation_scores(output_file_3rd)
-            scores_4th = print_evaluation_scores(output_file_4th)
         except Exception:
             logger.exception("Exception in COCO evaluation.")
             scores = {}
@@ -898,8 +851,6 @@ class EvalCallback_cascade(Callback):
         for k, v in scores_2nd.items():
             self.trainer.monitors.put_scalar(k, v)
         for k, v in scores_3rd.items():
-            self.trainer.monitors.put_scalar(k, v)
-        for k, v in scores_4th.items():
             self.trainer.monitors.put_scalar(k, v)
 
     def _trigger_epoch(self):
@@ -947,10 +898,8 @@ if __name__ == '__main__':
                 output_name=MODEL.get_inference_tensor_names_cascade()[2]
             elif args.stage == 3:
                 output_name=MODEL.get_inference_tensor_names_cascade()[3]
-            elif args.stage == 4:
-                output_name=MODEL.get_inference_tensor_names_cascade()[4]
             else:
-                raise ValueError('args.stage should not be larger than 4.')
+                raise ValueError('args.stage should not be larger than 3.')
 
             pred = OfflinePredictor(PredictConfig(
                 model=MODEL,

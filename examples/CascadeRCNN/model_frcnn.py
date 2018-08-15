@@ -51,8 +51,6 @@ def proposal_metrics_cascade(iou, i):
         prefix = '_2nd'
     elif i == 3:
         prefix = '_3rd'
-    elif i == 4:
-        prefix = '_4th'
     best_iou = tf.reduce_max(iou, axis=0)
     mean_best_iou = tf.reduce_mean(best_iou, name='best_iou_per_gt'+prefix)
     summaries = [mean_best_iou]
@@ -153,9 +151,6 @@ def sample_cascade_rcnn_targets(boxes, gt_boxes, gt_labels, stage_num):
     elif stage_num == 3:
         prefix = '_3rd'
         fg_thresh = cfg.CASCADERCNN.FG_THRESH_3RD
-    elif stage_num == 4:
-        prefix = '_4th'
-        fg_thresh = cfg.CASCADERCNN.FG_THRESH_4TH
 
     iou = pairwise_iou(boxes, gt_boxes)     # nxm
     proposal_metrics_cascade(iou, stage_num)
@@ -237,8 +232,6 @@ def fastrcnn_outputs_cascade(feature, num_classes, stage_num):
         prefix = '_2nd'
     elif stage_num == 3:
         prefix = '_3rd'
-    elif stage_num == 4:
-        prefix = '_4th'
     classification = FullyConnected(
         'class'+prefix, feature, num_classes,
         kernel_initializer=tf.random_normal_initializer(stddev=0.01))
@@ -303,8 +296,6 @@ def fastrcnn_losses_cascade(labels, label_logits, fg_boxes, fg_box_logits, stage
         prefix = '_2nd'
     elif stage_num == 3:
         prefix = '_3rd'
-    elif stage_num == 4:
-        prefix = '_4th'
     label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=labels, logits=label_logits)
     label_loss = tf.reduce_mean(label_loss, name='label_loss'+prefix)
@@ -425,8 +416,6 @@ def fastrcnn_predictions_box_voting(boxes, probs):
         selected_prob = tf.gather(prob, selected_indice)
 
         refined_box, refined_prob = box_voting(selected_box, selected_prob, box, prob, cfg.TEST.BOX_VOTING.THRESH)
-        print(refined_box.shape)
-        print(refined_prob.shape)
         # sort available in TF>1.4.0
         # sorted_selection = tf.contrib.framework.sort(selection, direction='ASCENDING')
         
@@ -515,21 +504,6 @@ def cascade_rcnn_2fc_head_stage3(feature, num_classes):
     hidden = FullyConnected('fc7_3rd', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
     return fastrcnn_outputs_cascade('outputs_3rd', hidden, num_classes, 3)
 
-@layer_register(log_shape=True)
-def cascade_rcnn_2fc_head_stage4(feature, num_classes):
-    """
-    Args:
-        feature (any shape):
-        num_classes(int): num_category + 1
-
-    Returns:
-        cls_logits (Nxnum_class), reg_logits (Nx num_class-1 x 4)
-    """
-    dim = cfg.FPN.FRCNN_FC_HEAD_DIM
-    init = tf.variance_scaling_initializer()
-    hidden = FullyConnected('fc6_4th', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
-    hidden = FullyConnected('fc7_4th', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
-    return fastrcnn_outputs_cascade('outputs_4th', hidden, num_classes, 4)
 
 @layer_register(log_shape=True)
 def fastrcnn_Xconv1fc_head(feature, num_classes, num_convs, norm=None):
