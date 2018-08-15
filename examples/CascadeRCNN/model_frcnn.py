@@ -12,7 +12,7 @@ from tensorpack.models import (
 from basemodel import GroupNorm
 from utils.box_ops import pairwise_iou
 from config import config as cfg
-
+from utils.box_ops import box_voting
 
 @under_name_scope()
 def proposal_metrics(iou):
@@ -390,6 +390,59 @@ def fastrcnn_predictions(boxes, probs):
     filtered_selection = tf.reverse(filtered_selection, axis=[1], name='filtered_indices')
     return filtered_selection, topk_probs
 
+@under_name_scope()
+def fastrcnn_predictions_box_voting(boxes, probs):
+    """
+    Generate final results from predictions of all proposals after NMS and box voting.
+
+    Args:
+        boxes: n#catx4 floatbox in float32
+        probs: nx#class
+    """
+    assert boxes.shape[1] == cfg.DATA.NUM_CATEGORY
+    assert probs.shape[1] == cfg.DATA.NUM_CLASS
+    boxes = tf.transpose(boxes, [1, 0, 2])  # #catxnx4
+    probs = tf.transpose(probs[:, 1:], [1, 0])  # #catxn
+
+    def f(X):
+        """
+        prob: n probabilities
+        box: nx4 boxes
+
+        Returns: boxes after box voting
+        """
+        prob, box = X
+        output_shape = tf.shape(prob)
+        # filter by score threshold
+        ids = tf.reshape(tf.where(prob > cfg.TEST.RESULT_SCORE_THRESH), [-1])
+        prob = tf.gather(prob, ids)
+        box = tf.gather(box, ids)
+        # NMS within each class
+        selected_indice = tf.image.non_max_suppression(
+            box, prob, cfg.TEST.RESULTS_PER_IM, cfg.TEST.FRCNN_NMS_THRESH)
+        selected_indice = tf.to_int32(tf.gather(ids, selected_indice))
+        selected_box = tf.gather(box, selected_indice)
+        selected_prob = tf.gather(prob, selected_indice)
+
+        refined_box, refined_prob = box_voting(selected_box, selected_prob, box, prob, cfg.TEST.BOX_VOTING.THRESH)
+        # sort available in TF>1.4.0
+        # sorted_selection = tf.contrib.framework.sort(selection, direction='ASCENDING')
+        
+        return refined_box, refined_prob, selected_indice
+
+    refined_boxes, refined_probs, refined_indices = tf.map_fn(f, (probs, boxes), dtype=tf.bool,
+                      parallel_iterations=10)     # refined_boxes: #cat x N; refined_indices: (cat_id, box_id)
+
+
+    # filter again by sorting scores
+    topk_probs, topk_indices = tf.nn.top_k(
+        refined_probs,
+        tf.minimum(cfg.TEST.RESULTS_PER_IM, tf.size(probs)),
+        sorted=False)
+    refined_boxes = tf.gather(refined_boxes, topk_indices)
+    refined_indices = tf.gather(refined_indices, topk_indices)
+    refined_indices = tf.reverse(refined_indices, axis=[1], name='filtered_indices')
+    return refined_boxes, topk_probs, refined_indices
 
 """
 FastRCNN heads for FPN:

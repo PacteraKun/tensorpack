@@ -33,7 +33,7 @@ from basemodel import (
 import model_frcnn
 import model_mrcnn
 from model_frcnn import (
-    sample_fast_rcnn_targets, sample_cascade_rcnn_targets, fastrcnn_losses_cascade,
+    sample_fast_rcnn_targets, sample_cascade_rcnn_targets, fastrcnn_losses_cascade, fastrcnn_predictions_box_voting,
     fastrcnn_outputs, fastrcnn_losses, fastrcnn_predictions)
 from model_mrcnn import maskrcnn_upXconv_head, maskrcnn_loss
 from model_rpn import rpn_head, rpn_losses, generate_rpn_proposals
@@ -211,17 +211,17 @@ class DetectionModel(ModelDesc):
         decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
 
         # indices: Nx2. Each index into (#proposal, #category)
-        pred_indices, final_probs = fastrcnn_predictions(decoded_boxes, label_probs)
-        final_probs = tf.identity(final_probs, 'final_probs'+prefix)
-        final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name='final_boxes'+prefix)
-        final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels'+prefix)
-
         #TODO add box voting after NMS
         if cfg.TEST.BOX_VOTING.ENABLED:
-            print(tf.shape(final_boxes), tf.shape(decoded_boxes))
-            final_boxes, final_probs = box_voting(final_boxes, final_probs, decoded_boxes, label_probs, cfg.TEST.BOX_VOTING.THRESH)
-            final_probs = tf.identity(final_probs, 'final_probs_voting'+prefix)
-            final_boxes = tf.identity(final_boxes, 'final_boxes_voting'+prefix)
+            final_boxes, final_probs, pred_indices = fastrcnn_predictions_box_voting(decoded_boxes, label_probs)
+            final_probs = tf.identity(final_probs, 'final_probs'+prefix)
+            final_boxes = tf.identity(final_boxes, 'final_boxes'+prefix)
+            final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels'+prefix)
+        else:
+            pred_indices, final_probs = fastrcnn_predictions(decoded_boxes, label_probs)
+            final_probs = tf.identity(final_probs, 'final_probs'+prefix)
+            final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name='final_boxes'+prefix)
+            final_labels = tf.add(pred_indices[:, 1], 1, name='final_labels'+prefix)
 
         return final_boxes, final_labels
 
@@ -286,12 +286,6 @@ class DetectionModel(ModelDesc):
         out_2nd = ['final_boxes_2nd', 'final_probs_2nd', 'final_labels_2nd']
         out_3rd = ['final_boxes_3rd', 'final_probs_3rd', 'final_labels_3rd']
         out_4th = ['final_boxes_4th', 'final_probs_4th', 'final_labels_4th']
-
-        if cfg.TEST.BOX_VOTING.ENABLED:
-            out_1st = ['ffinal_boxes_voting_1st', 'final_probs_voting_1st', 'final_labels_1st']
-            out_2nd = ['final_boxes_voting_2nd', 'final_probs_voting_2nd', 'final_labels_2nd']
-            out_3rd = ['final_boxes_voting_3rd', 'final_probs_voting_3rd', 'final_labels_3rd']
-            out_4th = ['final_boxes_voting_4th', 'final_probs_voting_4th', 'final_labels_4th']
 
         return ['image'], out_1st, out_2nd, out_3rd, out_4th
 
