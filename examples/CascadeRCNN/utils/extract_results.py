@@ -1,3 +1,9 @@
+'''
+
+Print and store mAP results of validatioin dataset from train log text file. 
+
+'''
+
 import os, sys, argparse
 
 parser = argparse.ArgumentParser()
@@ -5,8 +11,13 @@ input = parser.add_argument('--input', help='input log file path', type=str)
 output = parser.add_argument('--output', help='output txt file to store mAp results', type=str)
 
 args = parser.parse_args()
-with open(args.input) as f:
-    log = f.readlines()
+if os.path.exists(args.input):
+    with open(args.input) as f:
+        try:
+            log = f.readlines()
+        except IOError:
+            print("Could not read file:", args.input)
+
 count = 0
 i = 0
 
@@ -21,9 +32,4 @@ while i < len(log):
             file.write(log[j] + '\n')        
     i += 1
 file.close()
-'''for i, line in enumerate(log):
-    if 'Accumulating evaluation results' in line:
-        count += 1
-        print(i)
-print(count)'''
 

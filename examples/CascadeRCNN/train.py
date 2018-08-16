@@ -807,6 +807,9 @@ class EvalCallback(Callback):
             self._eval()
 
 class EvalCallback_cascade(Callback):
+    '''
+    Evaluation Callback used during training. 
+    '''
     def __init__(self, in_names, out_names_1st, out_names_2nd, out_names_3rd):
         self._in_names, self._out_names_1st, self._out_names_2nd, self._out_names_3rd = in_names, out_names_1st, out_names_2nd, out_names_3rd
 
