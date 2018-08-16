@@ -136,17 +136,17 @@ _C.FRCNN.FG_THRESH = 0.5
 _C.FRCNN.FG_RATIO = 0.25  # fg ratio in a ROI batch
 
 # fastrcnn cascade training
-_C.CASCADERCNN.FG_THRESH_1ST = 0.5
-_C.CASCADERCNN.FG_THRESH_2ND = 0.6
-_C.CASCADERCNN.FG_THRESH_3RD = 0.7
-_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE1 = 1.0
-_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE2 = 0.5
-_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE3 = 0.25
+_C.CASCADERCNN.FG_THRESH_1ST = 0.5 # IoU threshold for stage 1 of Cascade R-CNN
+_C.CASCADERCNN.FG_THRESH_2ND = 0.6 # IoU threshold for stage 2 of Cascade R-CNN
+_C.CASCADERCNN.FG_THRESH_3RD = 0.7 # IoU threshold for stage 3 of Cascade R-CNN
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE1 = 1.0 # Weight for box regression loss for stage 1 of Cascade R-CNN
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE2 = 0.5 # Weight for box regression loss for stage 2 of Cascade R-CNN
+_C.CASCADERCNN.WEIGHT_LOSS_BBOX_STAGE3 = 0.25 # Weight for box regression loss for stage 3 of Cascade R-CNN
 _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE1 = [10., 10., 5., 5.]
 _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE2 = [20., 20., 10., 10.]
 _C.CASCADERCNN.BBOX_REG_WEIGHTS_STAGE3 = [30., 30., 15., 15.]
 
-_C.CASCADERCNN.HEAD_FUNC_STAGE1 = 'cascade_rcnn_2fc_head_stage1'
+_C.CASCADERCNN.HEAD_FUNC_STAGE1 = 'cascade_rcnn_2fc_head_stage1' 
 _C.CASCADERCNN.HEAD_FUNC_STAGE2 = 'cascade_rcnn_2fc_head_stage2'
 _C.CASCADERCNN.HEAD_FUNC_STAGE3 = 'cascade_rcnn_2fc_head_stage3'
 
@@ -158,7 +158,6 @@ _C.FPN.NORM = 'None'  # 'None', 'GN'
 # conv head and fc head are only used in FPN.
 # For C4 models, the head is C5
 _C.FPN.FRCNN_HEAD_FUNC = 'fastrcnn_2fc_head'
-#_C.FPN.CASCADE_RCNN_HEAD_FUNC = 'add_roi_cascade_2fc_head'
 # choices: fastrcnn_2fc_head, fastrcnn_4conv1fc_{,gn_}head
 _C.FPN.FRCNN_CONV_HEAD_DIM = 256
 _C.FPN.FRCNN_FC_HEAD_DIM = 1024
