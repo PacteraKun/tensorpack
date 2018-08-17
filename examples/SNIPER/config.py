@@ -142,7 +142,8 @@ _C.FPN.PROPOSAL_MODE = 'Level'  # 'Level', 'Joint'
 _C.FPN.NUM_CHANNEL = 256
 _C.FPN.NORM = 'None'  # 'None', 'GN'
 # conv head and fc head are only used in FPN.
-# For C4 models, the head is C5
+# For C4 models, the head isy with Confidence
+
 _C.FPN.FRCNN_HEAD_FUNC = 'fastrcnn_2fc_head'
 # choices: fastrcnn_2fc_head, fastrcnn_4conv1fc_{,gn_}head
 _C.FPN.FRCNN_CONV_HEAD_DIM = 256
@@ -159,12 +160,15 @@ _C.SNIPER.VALID_RANGES = [(-1,100), (80, 160), (128, 320), (300, -1)]
 # Valid ranges in each scale
 _C.SNIPER.CHIP_SIZE = 512
 _C.SNIPER.CHIP_STRIDE = 32
-_C.SNIPER.IMAGE_CHIP_ITR = 5
+# _C.SNIPER.IMAGE_CHIP_ITR = 5
 # number of random gen chip iters
 # due to data flow structure, we need to present image chip before training
 _C.SNIPER.PRN_PRE = '/media/workspace/jiaqicai/rpn_proposals.pkl' 
+# pretrained rpn proposals, extracked by detectron
 _C.SNIPER.NEG_CHIP_NUM_PER_IMAGE = 2
+# negative chips number per image
 _C.SNIPER.NEG_CHIP_RPN_THRESHOLD = 10
+# least number of filtered proposals in a negative 
 
 
 # Mask-RCNN

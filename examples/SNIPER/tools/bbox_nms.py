@@ -1,3 +1,4 @@
+# see document in pedestrian-detection/tools/post_processing/bbox_nms.py
 import numpy as np
 from imutils.object_detection import non_max_suppression
 

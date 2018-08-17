@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 cut_test.py: create cutted image and position file
+only support 1x 2x 3x and to 512.0 scale
+change init if want to change crop size
 
+--img : Image folder containing image to crop
+--output : output image folder
+--position : position file for cropped image
+-- size : crop size
 
 """
 import os
@@ -10,6 +16,8 @@ import numpy as np
 import argparse
 
 
+__author__ = "Jiaqi Cai"
+__email__ = "jiaqi.cai22@pactera.com"
 
 class Im2Chip(object):
     def __init__(self, im_file, im_path):

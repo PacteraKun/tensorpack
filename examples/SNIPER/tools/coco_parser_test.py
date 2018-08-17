@@ -4,7 +4,7 @@ coco_parser_test.py : create coco json for images
 
 This is a tool for creating COCO json file for unlabeled images.
 No annotation file required
-Image size : 512 x 512
+target image size : 512 x 512
 """
 __author__ = "Jiaqi Cai"
 __email__ = "jiaqi.cai22@pactera.com"

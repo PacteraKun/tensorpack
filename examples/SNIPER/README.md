@@ -1,4 +1,4 @@
-# Faster-RCNN / Mask-RCNN on COCO
+# SNIPER on COCO
 This example provides a minimal (<2k lines) and faithful implementation of the following papers:
 
 + [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497)
@@ -40,7 +40,8 @@ COCO/DIR/
 On a single machine:
 ```
 ./train.py --config \
-    MODE_MASK=False MODE_FPN=False MODE_SNIPER=True\
+    MODE_MASK=False MODE_FPN=False \
+    MODE_SNIPER=True \
     DATA.BASEDIR=/path/to/COCO/DIR \
     BACKBONE.WEIGHTS=/path/to/weight \
 ```
@@ -54,7 +55,7 @@ The code is only valid for training with 1, 2, 4 or >=8 GPUs.
 Not training with 8 GPUs may result in different performance from the table below.
 
 
-To evaluate the performance of a model on COCO format data, please use the origin version of tensorpack-faster rcnn(). First you should crop testing images(tool is offered) to your training scale. Then test on cropped images with TEST.FRCNN_NMS_THRESH = 1, parse output json file to WIDER format, put back to origin scale, filter result using SNIPER.VALID_RANGES in config and apply NMS.
+To evaluate the performance of a model on COCO format data, please use the origin version of tensorpack-faster rcnn(). First you should crop testing images to your training scale using [cut_test.py](./tools/cut_test.py) and [coco_parser_test.py](./tools/coco_parser_test.py). Then test on cropped images with TEST.FRCNN_NMS_THRESH = 1, put back to origin scale and filter by using SNIPER.VALID_RANGES in config and using [ParseJson.py](./tools/ParseJson.py), parse output json file to WIDER format using [json2submission.py](./tools/json2submission.py). Finally NMS should be applied using [bbox_nms.py](./tools/bbox_nums.py).
 
 ```
 ./train.py --evaluate output.json --load /path/to/COCO-R50C4-MaskRCNN-Standard.npz \
@@ -63,7 +64,3 @@ To evaluate the performance of a model on COCO format data, please use the origi
 Evaluation or prediction will need the same `--config` used during training.
 
 
-
-## Notes
-
-See [Notes on This Implementation](NOTES.md)
